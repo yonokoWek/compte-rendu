@@ -1,0 +1,452 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useRef, useCallback } from 'react';
+     4→import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+     5→import { format, eachDayOfInterval, getDay } from 'date-fns';
+     6→import { fr } from 'date-fns/locale';
+     7→import { useAppStore, DAY_NAMES_SHORT } from '@/store/app-store';
+     8→import { Card, CardContent } from '@/components/ui/card';
+     9→import { Button } from '@/components/ui/button';
+    10→import { Input } from '@/components/ui/input';
+    11→import { Textarea } from '@/components/ui/textarea';
+    12→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    13→import { Badge } from '@/components/ui/badge';
+    14→import {
+    15→  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+    16→} from '@/components/ui/dialog';
+    17→import {
+    18→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    19→} from '@/components/ui/select';
+    20→import {
+    21→  Plus, Trash2, Check, BookOpen, Book, Upload, StickyNote,
+    22→  ChevronDown, ChevronRight, FileText, GripVertical, X,
+    23→} from 'lucide-react';
+    24→import { toast } from 'sonner';
+    25→
+    26→// Bible book structure
+    27→const BIBLE_BOOKS = [
+    28→  { name: 'Genèse', chapters: 50, testament: 'AT' },
+    29→  { name: 'Exode', chapters: 40, testament: 'AT' },
+    30→  { name: 'Lévitique', chapters: 27, testament: 'AT' },
+    31→  { name: 'Nombres', chapters: 36, testament: 'AT' },
+    32→  { name: 'Deutéronome', chapters: 34, testament: 'AT' },
+    33→  { name: 'Josué', chapters: 24, testament: 'AT' },
+    34→  { name: 'Juges', chapters: 21, testament: 'AT' },
+    35→  { name: 'Ruth', chapters: 4, testament: 'AT' },
+    36→  { name: '1 Samuel', chapters: 31, testament: 'AT' },
+    37→  { name: '2 Samuel', chapters: 24, testament: 'AT' },
+    38→  { name: '1 Rois', chapters: 22, testament: 'AT' },
+    39→  { name: '2 Rois', chapters: 25, testament: 'AT' },
+    40→  { name: '1 Chroniques', chapters: 29, testament: 'AT' },
+    41→  { name: '2 Chroniques', chapters: 36, testament: 'AT' },
+    42→  { name: 'Esdras', chapters: 10, testament: 'AT' },
+    43→  { name: 'Néhémie', chapters: 13, testament: 'AT' },
+    44→  { name: 'Esther', chapters: 10, testament: 'AT' },
+    45→  { name: 'Job', chapters: 42, testament: 'AT' },
+    46→  { name: 'Psaumes', chapters: 150, testament: 'AT' },
+    47→  { name: 'Proverbes', chapters: 31, testament: 'AT' },
+    48→  { name: 'Ecclésiaste', chapters: 12, testament: 'AT' },
+    49→  { name: 'Cantique', chapters: 8, testament: 'AT' },
+    50→  { name: 'Esaïe', chapters: 66, testament: 'AT' },
+    51→  { name: 'Jérémie', chapters: 52, testament: 'AT' },
+    52→  { name: 'Lamentations', chapters: 5, testament: 'AT' },
+    53→  { name: 'Ezéchiel', chapters: 48, testament: 'AT' },
+    54→  { name: 'Daniel', chapters: 12, testament: 'AT' },
+    55→  { name: 'Osée', chapters: 14, testament: 'AT' },
+    56→  { name: 'Joël', chapters: 3, testament: 'AT' },
+    57→  { name: 'Amos', chapters: 9, testament: 'AT' },
+    58→  { name: 'Abdias', chapters: 1, testament: 'AT' },
+    59→  { name: 'Jonas', chapters: 4, testament: 'AT' },
+    60→  { name: 'Michée', chapters: 7, testament: 'AT' },
+    61→  { name: 'Nahum', chapters: 3, testament: 'AT' },
+    62→  { name: 'Habakuk', chapters: 3, testament: 'AT' },
+    63→  { name: 'Sophonie', chapters: 3, testament: 'AT' },
+    64→  { name: 'Aggée', chapters: 2, testament: 'AT' },
+    65→  { name: 'Zacharie', chapters: 14, testament: 'AT' },
+    66→  { name: 'Malachie', chapters: 4, testament: 'AT' },
+    67→  { name: 'Matthieu', chapters: 28, testament: 'NT' },
+    68→  { name: 'Marc', chapters: 16, testament: 'NT' },
+    69→  { name: 'Luc', chapters: 24, testament: 'NT' },
+    70→  { name: 'Jean', chapters: 21, testament: 'NT' },
+    71→  { name: 'Actes', chapters: 28, testament: 'NT' },
+    72→  { name: 'Romains', chapters: 16, testament: 'NT' },
+    73→  { name: '1 Corinthiens', chapters: 16, testament: 'NT' },
+    74→  { name: '2 Corinthiens', chapters: 13, testament: 'NT' },
+    75→  { name: 'Galates', chapters: 6, testament: 'NT' },
+    76→  { name: 'Ephésiens', chapters: 6, testament: 'NT' },
+    77→  { name: 'Philippiens', chapters: 4, testament: 'NT' },
+    78→  { name: 'Colossiens', chapters: 4, testament: 'NT' },
+    79→  { name: '1 Thessaloniciens', chapters: 5, testament: 'NT' },
+    80→  { name: '2 Thessaloniciens', chapters: 3, testament: 'NT' },
+    81→  { name: '1 Timothée', chapters: 6, testament: 'NT' },
+    82→  { name: '2 Timothée', chapters: 4, testament: 'NT' },
+    83→  { name: 'Tite', chapters: 3, testament: 'NT' },
+    84→  { name: 'Philémon', chapters: 1, testament: 'NT' },
+    85→  { name: 'Hébreux', chapters: 13, testament: 'NT' },
+    86→  { name: 'Jacques', chapters: 5, testament: 'NT' },
+    87→  { name: '1 Pierre', chapters: 5, testament: 'NT' },
+    88→  { name: '2 Pierre', chapters: 3, testament: 'NT' },
+    89→  { name: '1 Jean', chapters: 5, testament: 'NT' },
+    90→  { name: '2 Jean', chapters: 1, testament: 'NT' },
+    91→  { name: '3 Jean', chapters: 1, testament: 'NT' },
+    92→  { name: 'Jude', chapters: 1, testament: 'NT' },
+    93→  { name: 'Apocalypse', chapters: 22, testament: 'NT' },
+    94→];
+    95→
+    96→interface Book {
+    97→  id: string;
+    98→  title: string;
+    99→  author: string;
+   100→  totalChapters: number;
+   101→  currentChapter: number;
+   102→  status: string;
+   103→  pdfUrl: string;
+   104→  notes: { id: string; content: string; positionX: number; positionY: number }[];
+   105→}
+   106→
+   107→interface BibleLog { id: string; date: string; chapters: number; }
+   108→interface PrayerNeed { id: string; text: string; resolved: boolean; }
+   109→interface ReadingNote { id: string; bookId: string | null; bibleRef: string; content: string; positionX: number; positionY: number; }
+   110→
+   111→// Floating Note Component
+   112→function FloatingNote({ note, onUpdate, onDelete, onDragStart }: {
+   113→  note: ReadingNote;
+   114→  onUpdate: (id: string, content: string) => void;
+   115→  onDelete: (id: string) => void;
+   116→  onDragStart: (id: string, e: React.MouseEvent) => void;
+   117→}) {
+   118→  const [editing, setEditing] = useState(false);
+   119→  const [text, setText] = useState(note.content);
+   120→
+   121→  const handleSave = () => {
+   122→    onUpdate(note.id, text);
+   123→    setEditing(false);
+   124→  };
+   125→
+   126→  return (
+   127→    <div
+   128→      className="absolute z-50 cursor-move select-none"
+   129→      style={{ left: `${note.positionX}%`, top: `${note.positionY}%` }}
+   130→      onMouseDown={(e) => onDragStart(note.id, e)}
+   131→    >
+   132→      <div className="bg-yellow-100 border border-yellow-300 rounded-lg shadow-lg p-2 min-w-[140px] max-w-[200px]">
+   133→        <div className="flex items-center justify-between mb-1">
+   134→          <GripVertical className="h-3 w-3 text-yellow-400" />
+   135→          <button onClick={() => onDelete(note.id)} className="text-yellow-400 hover:text-red-400">
+   136→            <X className="h-3 w-3" />
+   137→          </button>
+   138→        </div>
+   139→        {editing ? (
+   140→          <textarea value={text} onChange={(e) => setText(e.target.value)} onBlur={handleSave}
+   141→            onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
+   142→            className="w-full text-[10px] bg-transparent border-none outline-none resize-none h-12"
+   143→            autoFocus />
+   144→        ) : (
+   145→          <p onClick={() => setEditing(true)} className="text-[10px] text-gray-700 cursor-text leading-tight">{note.content}</p>
+   146→        )}
+   147→        {note.bibleRef && <p className="text-[8px] text-yellow-600 mt-1 font-medium">📖 {note.bibleRef}</p>}
+   148→      </div>
+   149→    </div>
+   150→  );
+   151→}
+   152→
+   153→export default function LectureTab() {
+   154→  const period = useAppStore((s) => s.period);
+   155→  const queryClient = useQueryClient();
+   156→  const containerRef = useRef<HTMLDivElement>(null);
+   157→  const draggingRef = useRef<string | null>(null);
+   158→  const dragOffsetRef = useRef({ x: 0, y: 0 });
+   159→
+   160→  const [newBookTitle, setNewBookTitle] = useState('');
+   161→  const [newBookAuthor, setNewBookAuthor] = useState('');
+   162→  const [newBookChapters, setNewBookChapters] = useState('');
+   163→  const [newPrayerText, setNewPrayerText] = useState('');
+   164→  const [chapterInput, setChapterInput] = useState<Record<string, string>>({});
+   165→  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+   166→  const [noteText, setNoteText] = useState('');
+   167→  const [noteContext, setNoteContext] = useState<{ bookId?: string; bibleRef?: string }>({});
+   168→  const [expandedTestament, setExpandedTestament] = useState<string | null>('NT');
+   169→  const [bibleBookFilter, setBibleBookFilter] = useState('');
+   170→  const [uploadingBookId, setUploadingBookId] = useState<string | null>(null);
+   171→
+   172→  const { data: books = [] } = useQuery<Book[]>({ queryKey: ['books'], queryFn: () => fetch('/api/books').then((r) => r.json()) });
+   173→  const { data: bibleLogs = [] } = useQuery<BibleLog[]>({ queryKey: ['bible', period.startDate, period.endDate], queryFn: () => fetch(`/api/bible?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`).then((r) => r.json()) });
+   174→  const { data: prayers = [] } = useQuery<PrayerNeed[]>({ queryKey: ['prayers'], queryFn: () => fetch('/api/prayers').then((r) => r.json()) });
+   175→  const { data: notes = [] } = useQuery<ReadingNote[]>({ queryKey: ['notes'], queryFn: () => fetch('/api/notes').then((r) => r.json()) });
+   176→
+   177→  const addBook = useMutation({ mutationFn: (data: { title: string; author: string; totalChapters: number; pdfUrl: string }) => fetch('/api/books', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['books'] }); setNewBookTitle(''); setNewBookAuthor(''); setNewBookChapters(''); } });
+   178→  const deleteBook = useMutation({ mutationFn: (id: string) => fetch(`/api/books?id=${id}`, { method: 'DELETE' }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['books'] }) });
+   179→  const saveBibleLog = useMutation({ mutationFn: (data: { date: string; chapters: number }) => fetch('/api/bible', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bible'] }) });
+   180→  const addPrayer = useMutation({ mutationFn: (text: string) => fetch('/api/prayers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).then((r) => r.json()), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['prayers'] }); setNewPrayerText(''); } });
+   181→  const togglePrayer = useMutation({ mutationFn: (data: { id: string; resolved: boolean }) => fetch('/api/prayers', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prayers'] }) });
+   182→  const deletePrayer = useMutation({ mutationFn: (id: string) => fetch(`/api/prayers?id=${id}`, { method: 'DELETE' }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['prayers'] }) });
+   183→
+   184→  const addNote = useMutation({ mutationFn: (data: { bookId?: string; bibleRef?: string; content: string; positionX: number; positionY: number }) => fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['notes'] }); setNoteDialogOpen(false); setNoteText(''); toast.success('Note ajoutée'); } });
+   185→  const updateNote = useMutation({ mutationFn: (data: { id: string; content: string; positionX: number; positionY: number }) => fetch('/api/notes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notes'] }) });
+   186→  const deleteNote = useMutation({ mutationFn: (id: string) => fetch(`/api/notes?id=${id}`, { method: 'DELETE' }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notes'] }) });
+   187→
+   188→  const uploadPdf = async (bookId: string, file: File) => {
+   189→    setUploadingBookId(bookId);
+   190→    try {
+   191→      const formData = new FormData();
+   192→      formData.append('file', file);
+   193→      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+   194→      const data = await res.json();
+   195→      if (data.url) {
+   196→        await fetch('/api/books', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: bookId, pdfUrl: data.url }) });
+   197→        queryClient.invalidateQueries({ queryKey: ['books'] });
+   198→        toast.success('PDF ajouté');
+   199→      }
+   200→    } catch { toast.error('Erreur upload'); }
+   201→    setUploadingBookId(null);
+   202→  };
+   203→
+   204→  const handleNoteDrag = useCallback((noteId: string, e: React.MouseEvent) => {
+   205→    e.preventDefault();
+   206→    draggingRef.current = noteId;
+   207→    const container = containerRef.current;
+   208→    if (!container) return;
+   209→    const rect = container.getBoundingClientRect();
+   210→    dragOffsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+   211→  }, []);
+   212→
+   213→  const handleNoteDragMove = useCallback((e: React.MouseEvent) => {
+   214→    if (!draggingRef.current || !containerRef.current) return;
+   215→    const container = containerRef.current;
+   216→    const rect = container.getBoundingClientRect();
+   217→    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+   218→    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+   219→    updateNote.mutate({ id: draggingRef.current, content: '', positionX: x, positionY: y });
+   220→  }, [updateNote]);
+   221→
+   222→  const handleNoteDragEnd = useCallback(() => { draggingRef.current = null; }, []);
+   223→
+   224→  const bibleLogMap: Record<string, number> = {};
+   225→  for (const log of bibleLogs) bibleLogMap[log.date] = log.chapters;
+   226→  const totalBibleChapters = Object.values(bibleLogMap).reduce((s, v) => s + v, 0);
+   227→  const activeBooks = books.filter((b) => b.status === 'in_progress');
+   228→  const finishedBooks = books.filter((b) => b.status === 'finished');
+   229→
+   230→  const filteredBibleBooks = BIBLE_BOOKS.filter((b) => b.name.toLowerCase().includes(bibleBookFilter.toLowerCase()));
+   231→  const atBooks = filteredBibleBooks.filter((b) => b.testament === 'AT');
+   232→  const ntBooks = filteredBibleBooks.filter((b) => b.testament === 'NT');
+   233→
+   234→  return (
+   235→    <div className="max-w-4xl mx-auto p-4 space-y-4" ref={containerRef} onMouseMove={handleNoteDragMove} onMouseUp={handleNoteDragEnd} onMouseLeave={handleNoteDragEnd}>
+   236→      {/* Floating notes */}
+   237→      {notes.map((note) => (
+   238→        <FloatingNote key={note.id} note={note} onUpdate={(id, content) => updateNote.mutate({ id, content, positionX: 0, positionY: 0 })} onDelete={(id) => deleteNote.mutate(id)} onDragStart={handleNoteDrag} />
+   239→      ))}
+   240→
+   241→      <Tabs defaultValue="livres" className="w-full">
+   242→        <TabsList className="grid w-full grid-cols-3">
+   243→          <TabsTrigger value="livres" className="text-xs gap-1"><Book className="h-3 w-3" /> Livres</TabsTrigger>
+   244→          <TabsTrigger value="bible" className="text-xs gap-1"><BookOpen className="h-3 w-3" /> Bible</TabsTrigger>
+   245→          <TabsTrigger value="prieres" className="text-xs gap-1"><span className="text-xs">❤️</span> Prières</TabsTrigger>
+   246→        </TabsList>
+   247→
+   248→        {/* Livres Tab */}
+   249→        <TabsContent value="livres" className="space-y-4 mt-4">
+   250→          <div className="flex gap-3">
+   251→            <Card className="flex-1 border-orange-200 bg-orange-50"><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-orange-600">{books.length}</p><p className="text-xs text-gray-600">Total livres</p></CardContent></Card>
+   252→            <Card className="flex-1 border-orange-200 bg-orange-50"><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-orange-600">{books.reduce((s, b) => s + b.currentChapter, 0)}</p><p className="text-xs text-gray-600">Chapitres lus</p></CardContent></Card>
+   253→          </div>
+   254→
+   255→          <Card><CardContent className="p-3 space-y-2">
+   256→            <Input placeholder="Titre du livre" value={newBookTitle} onChange={(e) => setNewBookTitle(e.target.value)} className="text-sm" />
+   257→            <div className="flex gap-2">
+   258→              <Input placeholder="Auteur" value={newBookAuthor} onChange={(e) => setNewBookAuthor(e.target.value)} className="text-sm flex-1" />
+   259→              <Input placeholder="Nb chapitres" type="number" value={newBookChapters} onChange={(e) => setNewBookChapters(e.target.value)} className="text-sm w-24" />
+   260→            </div>
+   261→            <div className="flex gap-2">
+   262→              <label className="flex items-center gap-2 text-xs text-gray-600 flex-1 cursor-pointer bg-gray-50 rounded-lg px-3 py-2 border border-dashed border-gray-300 hover:border-orange-300 hover:bg-orange-50 transition-colors">
+   263→                <Upload className="h-4 w-4 text-orange-500" />
+   264→                <span className="truncate">{newBookTitle ? `PDF pour "${newBookTitle}"` : 'Ajouter un PDF (optionnel)'}</span>
+   265→                <input type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+   266→                  const file = e.target.files?.[0];
+   267→                  if (file) {
+   268→                    // Will upload after book creation
+   269→                    const input = e.target;
+   270→                    (window as unknown as Record<string, File>).__pendingPdf = file;
+   271→                    toast.info(`PDF "${file.name}" sera attaché après création du livre`);
+   272→                  }
+   273→                }} />
+   274→              </label>
+   275→            </div>
+   276→            <Button onClick={async () => {
+   277→              if (!newBookTitle.trim()) return;
+   278→              const pendingPdf = (window as unknown as Record<string, File>).__pendingPdf;
+   279→              (window as unknown as Record<string, File>).__pendingPdf = undefined;
+   280→              const res = await addBook.mutateAsync({ title: newBookTitle, author: newBookAuthor, totalChapters: parseInt(newBookChapters) || 0, pdfUrl: '' });
+   281→              if (pendingPdf && res?.id) uploadPdf(res.id, pendingPdf);
+   282→            }} disabled={!newBookTitle.trim() || addBook.isPending} className="w-full bg-orange-600 hover:bg-orange-700 text-white text-xs">
+   283→              <Plus className="h-3 w-3 mr-1" /> Ajouter un livre
+   284→            </Button>
+   285→          </CardContent></Card>
+   286→
+   287→          {/* Active books */}
+   288→          <div className="space-y-2">
+   289→            <h3 className="text-sm font-semibold text-gray-700">📚 Livres en cours</h3>
+   290→            {activeBooks.length === 0 && <p className="text-xs text-gray-400 italic">Aucun livre en cours</p>}
+   291→            {activeBooks.map((book) => (
+   292→              <Card key={book.id} className="border-l-4 border-l-orange-400">
+   293→                <CardContent className="p-3">
+   294→                  <div className="flex items-center justify-between">
+   295→                    <div className="flex-1 min-w-0">
+   296→                      <p className="text-sm font-medium truncate">{book.title}</p>
+   297→                      <p className="text-xs text-gray-500">{book.author ? `${book.author} • ` : ''}{book.currentChapter}/{book.totalChapters || '?'} chap.</p>
+   298→                    </div>
+   299→                    <div className="flex items-center gap-1 shrink-0">
+   300→                      {book.pdfUrl && (
+   301→                        <a href={book.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-orange-500 hover:text-orange-700"><FileText className="h-4 w-4" /></a>
+   302→                      )}
+   303→                      <button onClick={() => { setNoteContext({ bookId: book.id }); setNoteDialogOpen(true); }} className="p-1 text-yellow-500 hover:text-yellow-600"><StickyNote className="h-4 w-4" /></button>
+   304→                      <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => deleteBook.mutate(book.id)}><Trash2 className="h-3 w-3" /></Button>
+   305→                    </div>
+   306→                  </div>
+   307→                  {/* Attach PDF */}
+   308→                  {!book.pdfUrl && (
+   309→                    <label className="flex items-center gap-2 mt-2 text-[10px] text-gray-500 cursor-pointer hover:text-orange-500">
+   310→                      <Upload className="h-3 w-3" /> Attacher un PDF
+   311→                      <input type="file" accept=".pdf" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadPdf(book.id, file); }} />
+   312→                    </label>
+   313→                  )}
+   314→                </CardContent>
+   315→              </Card>
+   316→            ))}
+   317→          </div>
+   318→
+   319→          {finishedBooks.length > 0 && (
+   320→            <div className="space-y-2">
+   321→              <h3 className="text-sm font-semibold text-gray-700">✅ Livres terminés</h3>
+   322→              {finishedBooks.map((book) => (
+   323→                <Card key={book.id} className="border-l-4 border-l-green-400 opacity-75">
+   324→                  <CardContent className="p-3 flex items-center justify-between">
+   325→                    <div className="flex-1 min-w-0">
+   326→                      <p className="text-sm font-medium truncate">{book.title}</p>
+   327→                      <p className="text-xs text-gray-500">{book.author}</p>
+   328→                    </div>
+   329→                    <div className="flex items-center gap-1">
+   330→                      {book.pdfUrl && <a href={book.pdfUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-orange-500"><FileText className="h-4 w-4" /></a>}
+   331→                      <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => deleteBook.mutate(book.id)}><Trash2 className="h-3 w-3" /></Button>
+   332→                    </div>
+   333→                  </CardContent>
+   334→                </Card>
+   335→              ))}
+   336→            </div>
+   337→          )}
+   338→        </TabsContent>
+   339→
+   340→        {/* Bible Tab */}
+   341→        <TabsContent value="bible" className="space-y-4 mt-4">
+   342→          <Card className="border-orange-200 bg-orange-50"><CardContent className="p-4 text-center"><p className="text-xs text-gray-600">Total chapitres cette semaine</p><p className="text-3xl font-bold text-orange-600">{totalBibleChapters}</p></CardContent></Card>
+   343→
+   344→          {/* Daily bible reading */}
+   345→          <Card><CardContent className="p-3">
+   346→            <div className="flex items-center justify-between mb-3">
+   347→              <h3 className="text-sm font-semibold text-gray-700">Chapitres lus par jour</h3>
+   348→              <button onClick={() => { setNoteContext({ bibleRef: format(period.startDate, 'dd/MM') }); setNoteDialogOpen(true); }} className="p-1 text-yellow-500 hover:text-yellow-600"><StickyNote className="h-4 w-4" /></button>
+   349→            </div>
+   350→            <div className="space-y-2">
+   351→              {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
+   352→                const date = new Date(period.startDate);
+   353→                date.setDate(date.getDate() + offset);
+   354→                if (date > period.endDate) return null;
+   355→                const dateStr = format(date, 'yyyy-MM-dd');
+   356→                const dayName = format(date, 'EEEE', { locale: fr });
+   357→                const dayIndex = getDay(date);
+   358→                return (
+   359→                  <div key={dateStr} className="flex items-center gap-2">
+   360→                    <span className="text-xs text-gray-600 w-20 capitalize">{DAY_NAMES_SHORT[dayIndex === 0 ? 6 : dayIndex - 1]}</span>
+   361→                    <Input type="number" min="0" placeholder="0" value={chapterInput[dateStr] ?? bibleLogMap[dateStr] ?? ''} onChange={(e) => { const val = parseInt(e.target.value) || 0; setChapterInput((p) => ({ ...p, [dateStr]: e.target.value })); saveBibleLog.mutate({ date: dateStr, chapters: val }); }} className="flex-1 h-8 text-sm text-center" />
+   362→                    <span className="text-[10px] text-gray-400">ch.</span>
+   363→                  </div>
+   364→                );
+   365→              })}
+   366→            </div>
+   367→          </CardContent></Card>
+   368→
+   369→          {/* Bible book browser */}
+   370→          <Card><CardContent className="p-3">
+   371→            <h3 className="text-sm font-semibold text-gray-700 mb-2">📖 Livres de la Bible</h3>
+   372→            <Input placeholder="Rechercher un livre..." value={bibleBookFilter} onChange={(e) => setBibleBookFilter(e.target.value)} className="text-xs h-8 mb-3" />
+   373→
+   374→            {/* NT */}
+   375→            <div className="mb-3">
+   376→              <button onClick={() => setExpandedTestament(expandedTestament === 'NT' ? null : 'NT')} className="flex items-center gap-2 text-xs font-semibold text-orange-600 w-full">
+   377→                {expandedTestament === 'NT' ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+   378→                Nouveau Testament ({ntBooks.length} livres)
+   379→              </button>
+   380→              {expandedTestament === 'NT' && (
+   381→                <div className="mt-1 ml-2 grid grid-cols-2 gap-1 max-h-48 overflow-y-auto">
+   382→                  {ntBooks.map((b) => (
+   383→                    <button key={b.name} onClick={() => { setNoteContext({ bibleRef: b.name }); setNoteDialogOpen(true); }} className="text-left text-[10px] px-2 py-1 rounded hover:bg-orange-50 text-gray-700 truncate">
+   384→                      {b.name} <span className="text-gray-400">({b.chapters})</span>
+   385→                    </button>
+   386→                  ))}
+   387→                </div>
+   388→              )}
+   389→            </div>
+   390→
+   391→            {/* AT */}
+   392→            <div>
+   393→              <button onClick={() => setExpandedTestament(expandedTestament === 'AT' ? null : 'AT')} className="flex items-center gap-2 text-xs font-semibold text-orange-600 w-full">
+   394→                {expandedTestament === 'AT' ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+   395→                Ancien Testament ({atBooks.length} livres)
+   396→              </button>
+   397→              {expandedTestament === 'AT' && (
+   398→                <div className="mt-1 ml-2 grid grid-cols-2 gap-1 max-h-48 overflow-y-auto">
+   399→                  {atBooks.map((b) => (
+   400→                    <button key={b.name} onClick={() => { setNoteContext({ bibleRef: b.name }); setNoteDialogOpen(true); }} className="text-left text-[10px] px-2 py-1 rounded hover:bg-orange-50 text-gray-700 truncate">
+   401→                      {b.name} <span className="text-gray-400">({b.chapters})</span>
+   402→                    </button>
+   403→                  ))}
+   404→                </div>
+   405→              )}
+   406→            </div>
+   407→          </CardContent></Card>
+   408→        </TabsContent>
+   409→
+   410→        {/* Prières Tab */}
+   411→        <TabsContent value="prieres" className="space-y-4 mt-4">
+   412→          <Card><CardContent className="p-3">
+   413→            {prayers.length === 0 && <div className="text-center py-6 text-gray-400"><p className="text-sm">Aucun besoin de prière</p></div>}
+   414→            <div className="space-y-2">
+   415→              {prayers.map((prayer) => (
+   416→                <div key={prayer.id} className={`flex items-start gap-2 p-2 rounded-lg border ${prayer.resolved ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}>
+   417→                  <button onClick={() => togglePrayer.mutate({ id: prayer.id, resolved: !prayer.resolved })} className={`mt-0.5 shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${prayer.resolved ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}>
+   418→                    {prayer.resolved && <Check className="h-3 w-3" />}
+   419→                  </button>
+   420→                  <p className={`text-sm flex-1 ${prayer.resolved ? 'line-through text-gray-400' : 'text-gray-700'}`}>{prayer.text}</p>
+   421→                  <Button variant="ghost" size="icon" className="shrink-0 h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => deletePrayer.mutate(prayer.id)}><Trash2 className="h-3 w-3" /></Button>
+   422→                </div>
+   423→              ))}
+   424→            </div>
+   425→          </CardContent></Card>
+   426→          <div className="flex gap-2">
+   427→            <Input placeholder="Ajouter un besoin de prière..." value={newPrayerText} onChange={(e) => setNewPrayerText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && newPrayerText.trim()) addPrayer.mutate(newPrayerText); }} className="text-sm" />
+   428→            <Button onClick={() => { if (newPrayerText.trim()) addPrayer.mutate(newPrayerText); }} disabled={!newPrayerText.trim()} className="bg-orange-600 hover:bg-orange-700 text-white shrink-0" size="icon"><Plus className="h-4 w-4" /></Button>
+   429→          </div>
+   430→        </TabsContent>
+   431→      </Tabs>
+   432→
+   433→      {/* Note Dialog */}
+   434→      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+   435→        <DialogContent className="sm:max-w-sm">
+   436→          <DialogHeader>
+   437→            <DialogTitle className="flex items-center gap-2"><StickyNote className="h-5 w-5 text-yellow-500" /> Ajouter une note</DialogTitle>
+   438→            <DialogDescription>{noteContext.bibleRef ? `Note pour : ${noteContext.bibleRef}` : 'Votre note personnelle'}</DialogDescription>
+   439→          </DialogHeader>
+   440→          <Textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Écrivez votre note ici..." className="min-h-[100px] text-sm" autoFocus />
+   441→          <Button onClick={() => {
+   442→            if (!noteText.trim()) return;
+   443→            addNote.mutate({ ...noteContext, content: noteText, positionX: 50, positionY: 50 });
+   444→          }} disabled={!noteText.trim()} className="w-full bg-orange-600 hover:bg-orange-700 text-white text-xs">
+   445→            <Plus className="h-3 w-3 mr-1" /> Ajouter la note
+   446→          </Button>
+   447→        </DialogContent>
+   448→      </Dialog>
+   449→    </div>
+   450→  );
+   451→}
+   452→

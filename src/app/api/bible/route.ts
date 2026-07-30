@@ -24,8 +24,15 @@ export async function POST(request: Request) {
     const data = await request.json();
     const log = await db.bibleReadingLog.upsert({
       where: { date: data.date },
-      update: { chapters: data.chapters || 0 },
-      create: { date: data.date, chapters: data.chapters || 0 },
+      update: {
+        chapters: data.chapters || 0,
+        reference: data.reference || '',
+      },
+      create: {
+        date: data.date,
+        chapters: data.chapters || 0,
+        reference: data.reference || '',
+      },
     });
     return NextResponse.json(log);
   } catch {
