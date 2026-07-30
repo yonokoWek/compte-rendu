@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, eachDayOfInterval, getDay, differenceInCalendarDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -8,7 +8,6 @@ import { useAppStore, DAY_NAMES_SHORT, formatMinutes, getDaysInRange, getWeeksIn
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -18,11 +17,34 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
   ChevronLeft,
   ChevronRight,
   Download,
   User,
   CalendarDays,
+  Settings,
+  Plus,
+  Trash2,
+  FolderPlus,
+  GripVertical,
+  FolderOpen,
+  X,
+  ArrowRight,
+  MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,6 +55,15 @@ interface Category {
   sortOrder: number;
   isPersonal: boolean;
   icon: string;
+  groupId: string | null;
+  group: { id: string; name: string } | null;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  sortOrder: number;
+  categories: Category[];
 }
 
 interface DailyEntry {
@@ -40,7 +71,6 @@ interface DailyEntry {
   date: string;
   categoryId: string;
   value: number;
-  note: string;
   category: Category;
 }
 
@@ -62,11 +92,24 @@ export default function CompteRenduTab() {
   const setProfileDialogOpen = useAppStore((s) => s.setProfileDialogOpen);
   const queryClient = useQueryClient();
 
-  // Fetch categories
-  const { data: categories = [] } = useQuery<Category[]>({
+  // State for management dialog
+  const [manageOpen, setManageOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatUnit, setNewCatUnit] = useState('minutes');
+  const [newCatPersonal, setNewCatPersonal] = useState(true);
+  const [assigningCat, setAssigningCat] = useState<Category | null>(null);
+
+  // Fetch categories with groups
+  const { data: catData } = useQuery<{
+    categories: Category[];
+    groups: Group[];
+  }>({
     queryKey: ['categories'],
     queryFn: () => fetch('/api/categories').then((r) => r.json()),
   });
+  const categories = catData?.categories || [];
+  const groups = catData?.groups || [];
 
   // Fetch entries
   const { data: entries = [], isLoading: entriesLoading } = useQuery<DailyEntry[]>({
@@ -94,21 +137,44 @@ export default function CompteRenduTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['entries'] }),
   });
 
+  // Category mutations
+  const addCategory = useMutation({
+    mutationFn: (data: { type: 'category'; name: string; unit: string; isPersonal: boolean; groupId?: string }) =>
+      fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewCatName(''); },
+  });
+
+  const deleteCategory = useMutation({
+    mutationFn: (id: string) => fetch(`/api/categories?type=category&id=${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
+
+  const addGroup = useMutation({
+    mutationFn: (name: string) =>
+      fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'group', name }) }).then((r) => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewGroupName(''); toast.success('Groupe créé'); },
+  });
+
+  const deleteGroup = useMutation({
+    mutationFn: (id: string) => fetch(`/api/categories?type=group&id=${id}`, { method: 'DELETE' }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Groupe supprimé'); },
+  });
+
+  const assignToGroup = useMutation({
+    mutationFn: (data: { type: 'assign'; categoryId: string; groupId: string | null }) =>
+      fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setAssigningCat(null); toast.success('Activité déplacée'); },
+  });
+
   // Calculate columns
   const totalDays = differenceInCalendarDays(period.endDate, period.startDate) + 1;
   const isSingleWeek = totalDays <= 7;
 
   let columns: { key: string; label: string; date: string }[] = [];
-
   if (isSingleWeek) {
     columns = getDaysInRange(period.startDate, period.endDate).map((d) => {
       const dayIndex = getDay(d);
-      const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-      return {
-        key: format(d, 'yyyy-MM-dd'),
-        label: DAY_NAMES_SHORT[adjustedIndex],
-        date: format(d, 'yyyy-MM-dd'),
-      };
+      return { key: format(d, 'yyyy-MM-dd'), label: DAY_NAMES_SHORT[dayIndex === 0 ? 6 : dayIndex - 1], date: format(d, 'yyyy-MM-dd') };
     });
   } else {
     columns = getWeeksInRange(period.startDate, period.endDate).map((w, i) => ({
@@ -118,47 +184,25 @@ export default function CompteRenduTab() {
     }));
   }
 
-  // Build entry map
   const entryMap: Record<string, number> = {};
-  for (const e of entries) {
-    entryMap[`${e.date}_${e.categoryId}`] = e.value;
-  }
+  for (const e of entries) entryMap[`${e.date}_${e.categoryId}`] = e.value;
 
-  // Calculate cell value
-  const getCellValue = (categoryId: string, column: typeof columns[0]) => {
-    if (isSingleWeek) {
-      return entryMap[`${column.date}_${categoryId}`] || 0;
-    } else {
-      const [wStart, wEnd] = column.date.split('_');
-      const days = eachDayOfInterval({
-        start: new Date(wStart),
-        end: new Date(wEnd),
-      });
-      let total = 0;
-      for (const day of days) {
-        total += entryMap[`${format(day, 'yyyy-MM-dd')}_${categoryId}`] || 0;
-      }
-      return total;
+  const getCellValue = (categoryId: string, col: typeof columns[0]) => {
+    if (isSingleWeek) return entryMap[`${col.date}_${categoryId}`] || 0;
+    const [wStart, wEnd] = col.date.split('_');
+    let total = 0;
+    for (const day of eachDayOfInterval({ start: new Date(wStart), end: new Date(wEnd) })) {
+      total += entryMap[`${format(day, 'yyyy-MM-dd')}_${categoryId}`] || 0;
     }
+    return total;
   };
 
-  // Calculate row total
-  const getRowTotal = (categoryId: string) => {
-    return columns.reduce((sum, col) => sum + getCellValue(categoryId, col), 0);
-  };
+  const getRowTotal = (catId: string) => columns.reduce((s, col) => s + getCellValue(catId, col), 0);
 
-  // Calculate personal total
   const personalCategories = categories.filter((c) => c.isPersonal && c.unit === 'minutes');
-  const getPersonalTotal = (column?: typeof columns[0]) => {
-    if (column) {
-      return personalCategories.reduce((sum, cat) => sum + getCellValue(cat.id, column), 0);
-    }
-    return columns.reduce(
-      (sum, col) =>
-        sum +
-        personalCategories.reduce((s, cat) => s + getCellValue(cat.id, col), 0),
-      0
-    );
+  const getPersonalTotal = (col?: typeof columns[0]) => {
+    if (col) return personalCategories.reduce((s, cat) => s + getCellValue(cat.id, col), 0);
+    return columns.reduce((s, col) => s + personalCategories.reduce((s2, cat) => s2 + getCellValue(cat.id, col), 0), 0);
   };
 
   const handleCellChange = (categoryId: string, columnKey: string, value: string) => {
@@ -166,7 +210,6 @@ export default function CompteRenduTab() {
     if (isSingleWeek) {
       saveEntry.mutate({ date: columnKey, categoryId, value: numValue });
     } else {
-      // For multi-week, we need to distribute the value - just store in first day of week
       const [wStart] = columnKey.split('_');
       saveEntry.mutate({ date: wStart, categoryId, value: numValue });
     }
@@ -180,35 +223,40 @@ export default function CompteRenduTab() {
       const reportRes = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startDate: format(period.startDate, 'yyyy-MM-dd'),
-          endDate: format(period.endDate, 'yyyy-MM-dd'),
-        }),
+        body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd') }),
       });
       const reportData = await reportRes.json();
-
       const pdfRes = await fetch('/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: reportData.html }),
       });
       const pdfData = await pdfRes.json();
-
       const link = document.createElement('a');
       link.href = pdfData.pdf;
       link.download = `compte-rendu-${format(period.startDate, 'yyyy-MM-dd')}.pdf`;
       link.click();
-      toast.success('PDF exporté avec succès');
+      toast.success('PDF exporté');
     } catch {
-      toast.error('Erreur lors de la génération du PDF');
+      toast.error('Erreur PDF');
     } finally {
       setPdfLoading(false);
     }
   };
 
-  const displayName = profile
-    ? `${profile.firstName} ${profile.lastName}`.trim()
-    : 'Mon Compte';
+  const displayName = profile ? `${profile.firstName} ${profile.lastName}`.trim() : 'Mon Compte';
+
+  // Group categories for display
+  const groupedDisplay = new Map<string, Category[]>();
+  const ungrouped: Category[] = [];
+  for (const cat of categories) {
+    if (cat.groupId && cat.group) {
+      if (!groupedDisplay.has(cat.groupId)) groupedDisplay.set(cat.groupId, []);
+      groupedDisplay.get(cat.groupId)!.push(cat);
+    } else {
+      ungrouped.push(cat);
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-4">
@@ -224,16 +272,13 @@ export default function CompteRenduTab() {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" onClick={() => setManageOpen(true)}>
+            <Settings className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => setProfileDialogOpen(true)}>
             <User className="h-4 w-4" />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportPDF}
-            disabled={pdfLoading}
-            className="gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
-          >
+          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={pdfLoading} className="gap-1 text-orange-600 border-orange-200 hover:bg-orange-50">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">PDF</span>
           </Button>
@@ -247,27 +292,19 @@ export default function CompteRenduTab() {
             <Button variant="ghost" size="icon" className="shrink-0" onClick={prevPeriod}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-
             <div className="flex-1 flex items-center justify-center gap-2">
               <Select value={periodType} onValueChange={(v) => setPeriodType(v as 'week' | 'month' | 'year')}>
-                <SelectTrigger className="w-28 h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="week">Semaine</SelectItem>
                   <SelectItem value="month">Mois</SelectItem>
                   <SelectItem value="year">Année</SelectItem>
                 </SelectContent>
               </Select>
-              <span className="text-sm font-medium text-gray-800 truncate">
-                {period.label}
-              </span>
+              <span className="text-sm font-medium text-gray-800 truncate">{period.label}</span>
             </div>
-
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="text-xs h-8 px-2" onClick={goToCurrentPeriod}>
-                Auj.
-              </Button>
+              <Button variant="ghost" size="sm" className="text-xs h-8 px-2" onClick={goToCurrentPeriod}>Auj.</Button>
               <Button variant="ghost" size="icon" className="shrink-0" onClick={nextPeriod}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -283,102 +320,253 @@ export default function CompteRenduTab() {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="sticky left-0 bg-orange-500 text-white px-2 py-2 text-left font-semibold text-xs min-w-[130px] z-10 rounded-tl-lg">
-                    Activité
-                  </th>
-                  <th className="bg-orange-400 text-white px-1 py-2 text-center font-semibold text-xs w-10">
-                    {isSingleWeek ? 'Min' : ''}
-                  </th>
+                  <th className="sticky left-0 bg-orange-500 text-white px-2 py-2 text-left font-semibold text-xs min-w-[130px] z-10 rounded-tl-lg">Activité</th>
+                  <th className="bg-orange-400 text-white px-1 py-2 text-center font-semibold text-xs w-10">{isSingleWeek ? 'Min' : ''}</th>
                   {columns.map((col) => (
-                    <th
-                      key={col.key}
-                      className="bg-orange-500 text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px]"
-                    >
-                      {col.label}
-                    </th>
+                    <th key={col.key} className="bg-orange-500 text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px]">{col.label}</th>
                   ))}
-                  <th className="bg-orange-600 text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px] rounded-tr-lg">
-                    Total
-                  </th>
+                  <th className="bg-orange-600 text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px] rounded-tr-lg">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {entriesLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i}>
-                      <td className="bg-orange-100 px-2 py-2">
-                        <Skeleton className="h-4 w-24" />
-                      </td>
-                      {columns.map((_, j) => (
-                        <td key={j} className="px-2 py-2">
-                          <Skeleton className="h-6 w-8 mx-auto" />
-                        </td>
-                      ))}
+                      <td className="bg-orange-100 px-2 py-2"><Skeleton className="h-4 w-24" /></td>
+                      {columns.map((_, j) => <td key={j} className="px-2 py-2"><Skeleton className="h-6 w-8 mx-auto" /></td>)}
                     </tr>
                   ))
                 ) : (
-                  categories.map((cat, rowIndex) => (
-                    <tr
-                      key={cat.id}
-                      className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-orange-50/50'}
-                    >
-                      <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-orange-100">
-                        <div className="flex items-center gap-1">
-                          <span className={`text-[10px] ${rowIndex % 2 === 0 ? 'text-orange-600' : 'text-orange-500'}`}>
-                            ●
-                          </span>
-                          {cat.name}
-                        </div>
-                      </td>
-                      <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-orange-100/50">
-                        {cat.unit === 'minutes' ? 'min' : 'Part.'}
-                      </td>
-                      {columns.map((col) => {
-                        const val = getCellValue(cat.id, col);
-                        return (
-                          <td key={col.key} className="px-1 py-1 text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              value={val || ''}
-                              onChange={(e) => handleCellChange(cat.id, col.key, e.target.value)}
-                              placeholder="0"
-                              className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-orange-300 focus:border-orange-400 focus:bg-orange-50 focus:outline-none transition-colors"
-                            />
+                  <>
+                    {/* Grouped rows with group headers */}
+                    {Array.from(groupedDisplay.entries()).map(([gId, cats]) => {
+                      const groupName = cats[0]?.group?.name || '';
+                      return (
+                        <React.Fragment key={`group-${gId}`}>
+                          <tr>
+                            <td colSpan={columns.length + 3} className="bg-orange-600 text-white px-3 py-1 text-left text-xs font-bold">
+                              <FolderOpen className="h-3 w-3 inline mr-1" />
+                              {groupName}
+                            </td>
+                          </tr>
+                          {cats.map((cat, rowIndex) => (
+                            <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-orange-50/50'}>
+                              <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-orange-100">
+                                <span className="text-[10px] text-orange-500">●</span> {cat.name}
+                              </td>
+                              <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-orange-100/50">
+                                {cat.unit === 'minutes' ? 'min' : 'Part.'}
+                              </td>
+                              {columns.map((col) => {
+                                const val = getCellValue(cat.id, col);
+                                return (
+                                  <td key={col.key} className="px-1 py-1 text-center">
+                                    <input type="number" min="0" value={val || ''} onChange={(e) => handleCellChange(cat.id, col.key, e.target.value)}
+                                      placeholder="0"
+                                      className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-orange-300 focus:border-orange-400 focus:bg-orange-50 focus:outline-none transition-colors" />
+                                  </td>
+                                );
+                              })}
+                              <td className="px-2 py-1.5 text-center font-bold text-xs bg-orange-100/80">
+                                {cat.unit === 'minutes' ? formatMinutes(getRowTotal(cat.id)) : getRowTotal(cat.id) || ''}
+                              </td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* Ungrouped rows */}
+                    {ungrouped.length > 0 && (
+                      <>
+                        <tr>
+                          <td colSpan={columns.length + 3} className="bg-gray-200 text-gray-600 px-3 py-1 text-left text-xs font-semibold">
+                            Sans groupe
                           </td>
-                        );
-                      })}
-                      <td className="px-2 py-1.5 text-center font-bold text-xs bg-orange-100/80">
-                        {cat.unit === 'minutes'
-                          ? formatMinutes(getRowTotal(cat.id))
-                          : getRowTotal(cat.id) || ''}
+                        </tr>
+                        {ungrouped.map((cat, rowIndex) => (
+                          <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-orange-50/50'}>
+                            <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-orange-100">
+                              <span className="text-[10px] text-gray-400">●</span> {cat.name}
+                            </td>
+                            <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-orange-100/50">
+                              {cat.unit === 'minutes' ? 'min' : 'Part.'}
+                            </td>
+                            {columns.map((col) => {
+                              const val = getCellValue(cat.id, col);
+                              return (
+                                <td key={col.key} className="px-1 py-1 text-center">
+                                  <input type="number" min="0" value={val || ''} onChange={(e) => handleCellChange(cat.id, col.key, e.target.value)}
+                                    placeholder="0"
+                                    className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-orange-300 focus:border-orange-400 focus:bg-orange-50 focus:outline-none transition-colors" />
+                                </td>
+                              );
+                            })}
+                            <td className="px-2 py-1.5 text-center font-bold text-xs bg-orange-100/80">
+                              {cat.unit === 'minutes' ? formatMinutes(getRowTotal(cat.id)) : getRowTotal(cat.id) || ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Personal total row */}
+                    <tr className="bg-orange-700">
+                      <td colSpan={2} className="sticky left-0 px-2 py-2 text-left font-bold text-xs text-white z-10">
+                        Temps seul avec le Seigneur
+                      </td>
+                      {columns.map((col) => (
+                        <td key={col.key} className="px-2 py-2 text-center font-bold text-xs text-white">
+                          {formatMinutes(getPersonalTotal(col))}
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-center font-bold text-sm text-white">
+                        {formatMinutes(getPersonalTotal())}
                       </td>
                     </tr>
-                  ))
+                  </>
                 )}
-
-                {/* Personal total row */}
-                <tr className="bg-orange-600">
-                  <td
-                    colSpan={2}
-                    className="sticky left-0 px-2 py-2 text-left font-bold text-xs text-white z-10"
-                  >
-                    Temps seul avec le Seigneur
-                  </td>
-                  {columns.map((col) => (
-                    <td key={col.key} className="px-2 py-2 text-center font-bold text-xs text-white">
-                      {formatMinutes(getPersonalTotal(col))}
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 text-center font-bold text-sm text-white">
-                    {formatMinutes(getPersonalTotal())}
-                  </td>
-                </tr>
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
+
+      {/* Management Dialog */}
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 text-orange-600" />
+              Gérer les activités
+            </DialogTitle>
+            <DialogDescription>
+              Créez des groupes, ajoutez/supprimez des activités et assignez-les aux groupes.
+              Seules les activités groupées apparaîtront sur le PDF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Create group */}
+            <Card className="border-orange-200">
+              <CardContent className="p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-gray-700">Créer un groupe</h4>
+                <div className="flex gap-2">
+                  <Input placeholder="Nom du groupe" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="text-sm flex-1" />
+                  <Button onClick={() => { if (newGroupName.trim()) addGroup.mutate(newGroupName); }} disabled={!newGroupName.trim() || addGroup.isPending} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                    <FolderPlus className="h-3 w-3 mr-1" /> Créer
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Existing groups */}
+            {groups.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-gray-700">Groupes existants</h4>
+                {groups.map((group) => (
+                  <Card key={group.id} className="border-l-4 border-l-orange-400">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-orange-500" />
+                          <span className="text-sm font-semibold">{group.name}</span>
+                          <span className="text-[10px] text-gray-400">({group.categories.length} activités)</span>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => deleteGroup.mutate(group.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {group.categories.map((cat) => (
+                          <span key={cat.id} className="inline-flex items-center gap-1 text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                            {cat.name}
+                            <button onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })} className="hover:text-red-500">
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                        {group.categories.length === 0 && (
+                          <span className="text-[10px] text-gray-400 italic">Aucune activité assignée</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Add new category */}
+            <Card className="border-gray-200">
+              <CardContent className="p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-gray-700">Ajouter une activité</h4>
+                <div className="flex gap-2">
+                  <Input placeholder="Nom de l'activité" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="text-sm flex-1" />
+                  <Select value={newCatUnit} onValueChange={setNewCatUnit}>
+                    <SelectTrigger className="w-24 h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">Minutes</SelectItem>
+                      <SelectItem value="count">Compté</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] text-gray-500 flex items-center gap-1">
+                    <input type="checkbox" checked={newCatPersonal} onChange={(e) => setNewCatPersonal(e.target.checked)} className="rounded" />
+                    Personnel (compté dans le total)
+                  </label>
+                </div>
+                <Button onClick={() => { if (newCatName.trim()) addCategory.mutate({ type: 'category', name: newCatName, unit: newCatUnit, isPersonal: newCatPersonal }); }} disabled={!newCatName.trim()} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                  <Plus className="h-3 w-3 mr-1" /> Ajouter
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* All categories with assign/delete */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold text-gray-700">Toutes les activités</h4>
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex items-center justify-between p-2 rounded-lg border border-gray-100 bg-white hover:bg-gray-50">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{cat.name}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {cat.unit === 'minutes' ? 'min' : 'Part.'}
+                      {cat.isPersonal ? ' • Personnel' : ''}
+                      {cat.group ? ` • 📁 ${cat.group.name}` : ' • Non groupé'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 text-gray-400">
+                          <ArrowRight className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {groups.map((g) => (
+                          <DropdownMenuItem key={g.id} onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: g.id })}>
+                            <FolderOpen className="h-3 w-3 mr-2" />
+                            {g.name}
+                            {cat.groupId === g.id && ' ✓'}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })}>
+                          <X className="h-3 w-3 mr-2" />
+                          Retirer du groupe
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => { deleteCategory.mutate(cat.id); toast.success('Activité supprimée'); }}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const books = await db.book.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { chapterLogs: true },
+      include: { chapterLogs: true, notes: true },
     });
     return NextResponse.json(books);
   } catch {
@@ -21,6 +21,7 @@ export async function POST(request: Request) {
         title: data.title,
         author: data.author || '',
         totalChapters: data.totalChapters || 0,
+        pdfUrl: data.pdfUrl || '',
       },
     });
     return NextResponse.json(book);
@@ -40,6 +41,7 @@ export async function PUT(request: Request) {
         totalChapters: data.totalChapters,
         currentChapter: data.currentChapter,
         status: data.status,
+        pdfUrl: data.pdfUrl,
       },
     });
     return NextResponse.json(book);

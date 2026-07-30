@@ -17,21 +17,32 @@ model UserProfile {
   updatedAt  DateTime @updatedAt
 }
 
+model ActivityGroup {
+  id          String @id @default(cuid())
+  name        String
+  sortOrder   Int @default(0)
+  categories  ActivityCategory[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model ActivityCategory {
   id          String @id @default(cuid())
   name        String
   unit        String @default("minutes") // "minutes" or "count"
   sortOrder   Int @default(0)
-  isPersonal  Boolean @default(true) // true = counted in "Total de temps seul avec le Seigneur"
+  isPersonal  Boolean @default(true)
   icon        String @default("")
+  groupId     String?
+  group       ActivityGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   entries     DailyEntry[]
 }
 
 model DailyEntry {
   id                String @id @default(cuid())
-  date              String // YYYY-MM-DD format
+  date              String
   categoryId        String
-  value             Int @default(0) // minutes or count depending on category
+  value             Int @default(0)
   note              String @default("")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -47,7 +58,9 @@ model Book {
   author      String @default("")
   totalChapters Int @default(0)
   currentChapter Int @default(0)
-  status      String @default("in_progress") // "in_progress" or "finished"
+  status      String @default("in_progress")
+  pdfUrl      String @default("")
+  notes       ReadingNote[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   chapterLogs BookChapterLog[]
@@ -55,7 +68,7 @@ model Book {
 
 model BookChapterLog {
   id          String @id @default(cuid())
-  date        String // YYYY-MM-DD
+  date        String
   bookId      String
   chapters    Int @default(0)
   createdAt   DateTime @default(now())
@@ -67,20 +80,33 @@ model BookChapterLog {
 
 model BibleReadingLog {
   id          String @id @default(cuid())
-  date        String // YYYY-MM-DD
+  date        String
   chapters    Int @default(0)
   createdAt   DateTime @default(now())
 
   @@unique([date])
 }
 
+model ReadingNote {
+  id          String @id @default(cuid())
+  bookId      String?
+  bibleRef    String @default("")
+  content     String
+  positionX   Float @default(50)
+  positionY   Float @default(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  book        Book? @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
 model FinanceEntry {
   id          String @id @default(cuid())
-  date        String // YYYY-MM-DD
-  type        String // "income" or "expense"
+  date        String
+  type        String
   label       String
   amount      Int @default(0)
-  category    String @default("") // "epargne", "don", or custom
+  category    String @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -97,7 +123,7 @@ model CustomActivity {
   id          String @id @default(cuid())
   name        String
   icon        String @default("circle")
-  trackMode   String @default("count") // "count" or "timer"
+  trackMode   String @default("count")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   logs        CustomActivityLog[]
@@ -105,10 +131,10 @@ model CustomActivity {
 
 model CustomActivityLog {
   id          String @id @default(cuid())
-  date        String // YYYY-MM-DD
+  date        String
   activityId  String
   completed   Boolean @default(false)
-  duration    Int @default(0) // seconds if trackMode is "timer"
+  duration    Int @default(0)
   note        String @default("")
   createdAt   DateTime @default(now())
 

@@ -1,28 +1,34 @@
 ---
-Task ID: 1
+Task ID: 2
 Agent: Main Developer
-Task: Build comprehensive Compte Rendu (Activity Report) application
+Task: Enhancement - Activity groups, Bible, PDF books, floating notes
 
 Work Log:
-- Analyzed uploaded screenshots and PDF to understand the report format
-- Designed and created Prisma database schema with 10 models
-- Seeded database with 13 activity categories matching the reference app
-- Built Zustand state management store with period navigation
-- Created 5-tab bottom navigation layout (Rapport, Lecture, Finances, Activités, Historique)
-- Built Compte Rendu tab with editable data table (activities x days grid)
-- Built Lecture tab with Books/Bible/Prayers sub-tabs
-- Built Finances tab with income/expense tracking and summary dashboard
-- Built Activities tab with custom activity creation and daily checkoff
-- Built Historique tab with week history and custom period PDF export
-- Built Profile dialog for user information management
-- Created 10 API routes for all CRUD operations
-- Built PDF generation with smart grouping (days for 1 week, weeks for multi-week)
-- Fixed totalDays calculation bug (Math.ceil → differenceInCalendarDays)
-- Verified all tabs with agent-browser
+- Added ActivityGroup model to Prisma schema with relation to ActivityCategory
+- Added ReadingNote model (bookId, bibleRef, content, positionX, positionY)
+- Added pdfUrl field to Book model for PDF uploads
+- Updated categories API to support full CRUD: create/delete groups, create/delete/assign categories
+- Updated report API to only show categories assigned to a group on PDF, with group headers
+- Added /api/notes route for CRUD on floating reading notes
+- Added /api/upload route for PDF file uploads (stores in public/uploads/books/)
+- Rewrote Compte Rendu tab with management dialog (gear icon):
+  - Create/delete groups
+  - Add/delete activities
+  - Assign activities to groups via dropdown
+  - Group headers shown in table
+  - Ungrouped activities shown in separate section
+- Rewrote Lecture tab with:
+  - Full Bible structure (66 books, AT/NT with chapter counts)
+  - Collapsible testament browser with search
+  - PDF upload for books (attach during creation or after)
+  - PDF viewer link on each book
+  - Floating draggable notes (yellow sticky notes)
+  - Note creation dialog for Bible references and books
+- Verified all APIs work correctly
+- Lint passes
 
 Stage Summary:
-- Complete application with 5 functional modules
-- Orange/amber color scheme matching the reference
-- Smart PDF grouping: days for single week, weeks for multi-week
-- Responsive mobile-first design with bottom navigation
-- All data persisted in SQLite via Prisma
+- Activity management: full CRUD + grouping via settings dialog
+- PDF export: only grouped activities appear, with group header rows
+- Lecture: complete Bible structure + PDF book support
+- Notes: floating, draggable sticky notes for Bible and books

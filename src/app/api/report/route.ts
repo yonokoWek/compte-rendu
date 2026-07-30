@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { format, eachDayOfInterval, eachWeekOfInterval, addWeeks, startOfWeek, endOfWeek } from 'date-fns';
+import { format, eachDayOfInterval, eachWeekOfInterval, addWeeks, startOfWeek, endOfWeek, differenceInCalendarDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export async function POST(request: Request) {
@@ -8,11 +8,16 @@ export async function POST(request: Request) {
     const { startDate, endDate } = await request.json();
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const totalDays = differenceInCalendarDays(end, start) + 1;
     const isSingleWeek = totalDays <= 7;
 
-    // Fetch all data
-    const categories = await db.activityCategory.findMany({ orderBy: { sortOrder: 'asc' } });
+    // Fetch only grouped categories (those assigned to a group)
+    const categories = await db.activityCategory.findMany({
+      where: { groupId: { not: null } },
+      orderBy: { sortOrder: 'asc' },
+      include: { group: true },
+    });
+
     const profile = await db.userProfile.findFirst();
     const books = await db.book.findMany({ orderBy: { createdAt: 'desc' } });
     const prayers = await db.prayerNeed.findMany({ orderBy: { createdAt: 'desc' } });
@@ -21,13 +26,19 @@ export async function POST(request: Request) {
       include: { category: true },
     });
 
-    // Build entries map
     const entryMap: Record<string, number> = {};
     for (const e of entries) {
       entryMap[`${e.date}_${e.categoryId}`] = e.value;
     }
 
-    // Build table data
+    // Group categories by group
+    const grouped = new Map<string, typeof categories>();
+    for (const cat of categories) {
+      const gId = cat.groupId || '_ungrouped';
+      if (!grouped.has(gId)) grouped.set(gId, []);
+      grouped.get(gId)!.push(cat);
+    }
+
     let columnHeaders: string[];
     let columns: string[];
 
@@ -47,44 +58,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // Calculate cell values
-    const rows = categories.map((cat) => {
-      const values: number[] = columns.map((col) => {
-        if (isSingleWeek) {
-          return entryMap[`${col}_${cat.id}`] || 0;
-        } else {
-          const [wStart, wEnd] = col.split('_');
-          let total = 0;
-          const days = eachDayOfInterval({
-            start: new Date(wStart),
-            end: new Date(wEnd),
-          });
-          for (const day of days) {
-            const dayStr = format(day, 'yyyy-MM-dd');
-            total += entryMap[`${dayStr}_${cat.id}`] || 0;
-          }
-          return total;
-        }
+    function getCellValues(cat: typeof categories[0]): number[] {
+      return columns.map((col) => {
+        if (isSingleWeek) return entryMap[`${col}_${cat.id}`] || 0;
+        const [wStart, wEnd] = col.split('_');
+        let total = 0;
+        const days = eachDayOfInterval({ start: new Date(wStart), end: new Date(wEnd) });
+        for (const day of days) total += entryMap[`${format(day, 'yyyy-MM-dd')}_${cat.id}`] || 0;
+        return total;
       });
-      const rowTotal = values.reduce((s, v) => s + v, 0);
-      return { category: cat, values, rowTotal };
-    });
-
-    // Personal total row
-    const personalRows = rows.filter((r) => r.category.isPersonal && r.category.unit === 'minutes');
-    const personalTotals: number[] = columns.map((_, ci) =>
-      personalRows.reduce((s, r) => s + r.values[ci], 0)
-    );
-    const personalGrandTotal = personalTotals.reduce((s, v) => s + v, 0);
-
-    // Generate HTML for PDF
-    const fullName = profile ? `${profile.lastName || ''} ${profile.firstName || ''}`.trim() : '';
-    const assembly = profile?.assembly || '';
-    const mentor = profile?.mentor || '';
-
-    const periodLabel = isSingleWeek
-      ? `du ${format(start, 'd', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`
-      : `du ${format(start, 'd MMMM yyyy', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`;
+    }
 
     function fmtMin(m: number): string {
       if (m === 0) return '';
@@ -98,6 +81,44 @@ export async function POST(request: Request) {
     function fmtCount(c: number): string {
       return c === 0 ? '' : `${c}`;
     }
+
+    // Build grouped table rows with group headers
+    let tableRows = '';
+    let globalRowIndex = 0;
+    const personalTotalPerCol: number[] = columns.map(() => 0);
+    let personalGrandTotal = 0;
+
+    for (const [gId, cats] of grouped) {
+      const groupName = cats[0]?.group?.name || 'Autres';
+      tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">${groupName}</td></tr>`;
+
+      for (const cat of cats) {
+        const values = getCellValues(cat);
+        const rowTotal = values.reduce((s, v) => s + v, 0);
+
+        if (cat.isPersonal && cat.unit === 'minutes') {
+          values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
+          personalGrandTotal += rowTotal;
+        }
+
+        tableRows += `
+      <tr>
+        <td class="row-label">${cat.name}</td>
+        <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
+        ${values.map((v) => `<td class="zebra-${globalRowIndex % 2}">${cat.unit === 'minutes' ? fmtMin(v) : fmtCount(v)}</td>`).join('')}
+        <td style="font-weight:bold; background-color:#fed7aa;">${cat.unit === 'minutes' ? fmtMin(rowTotal) : fmtCount(rowTotal)}</td>
+      </tr>`;
+        globalRowIndex++;
+      }
+    }
+
+    const fullName = profile ? `${profile.lastName || ''} ${profile.firstName || ''}`.trim() : '';
+    const assembly = profile?.assembly || '';
+    const mentor = profile?.mentor || '';
+
+    const periodLabel = isSingleWeek
+      ? `du ${format(start, 'd', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`
+      : `du ${format(start, 'd MMMM yyyy', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`;
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -113,8 +134,9 @@ export async function POST(request: Request) {
   th, td { border: 1px solid #999; padding: 3px 4px; text-align: center; }
   th { background-color: #f97316; color: white; font-weight: bold; font-size: 7.5px; }
   .row-label { background-color: #fb923c; color: white; text-align: left; font-weight: bold; white-space: nowrap; min-width: 120px; font-size: 7.5px; }
-  .total-label { background-color: #ea580c; color: white; text-align: left; font-weight: bold; font-size: 8px; }
-  .total-cell { background-color: #ea580c; color: white; font-weight: bold; }
+  .group-label { background-color: #ea580c; color: white; text-align: left; font-weight: bold; font-size: 8px; padding: 4px; }
+  .total-label { background-color: #c2410c; color: white; text-align: left; font-weight: bold; font-size: 8px; }
+  .total-cell { background-color: #c2410c; color: white; font-weight: bold; }
   .zebra-0 { background-color: #ffffff; }
   .zebra-1 { background-color: #fff7ed; }
   .unit-col { width: 35px; background-color: #fdba74; color: white; font-size: 7px; }
@@ -141,17 +163,11 @@ export async function POST(request: Request) {
       </tr>
     </thead>
     <tbody>
-      ${rows.map((row, ri) => `
-      <tr>
-        <td class="row-label">${row.category.name}</td>
-        <td class="unit-col">${row.category.unit === 'minutes' ? 'min' : 'Part.'}</td>
-        ${row.values.map((v) => `<td class="zebra-${ri % 2}">${row.category.unit === 'minutes' ? fmtMin(v) : fmtCount(v)}</td>`).join('')}
-        <td style="font-weight:bold; background-color:#fed7aa;">${row.category.unit === 'minutes' ? fmtMin(row.rowTotal) : fmtCount(row.rowTotal)}</td>
-      </tr>`).join('')}
+      ${tableRows}
 
       <tr>
         <td class="total-label" colspan="2">Total de temps passé seul avec le Seigneur</td>
-        ${personalTotals.map((t) => `<td class="total-cell">${fmtMin(t)}</td>`).join('')}
+        ${personalTotalPerCol.map((t) => `<td class="total-cell">${fmtMin(t)}</td>`).join('')}
         <td class="total-cell" style="font-size:10px;">${fmtMin(personalGrandTotal)}</td>
       </tr>
     </tbody>
@@ -174,7 +190,6 @@ export async function POST(request: Request) {
 </body>
 </html>`;
 
-    // Return HTML content (will be converted to PDF client-side or via separate endpoint)
     return NextResponse.json({ html, periodLabel });
   } catch (error) {
     console.error('Report generation error:', error);
