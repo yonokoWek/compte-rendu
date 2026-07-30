@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id         String @id @default(cuid())
+  firstName  String @default("")
+  lastName   String @default("")
+  assembly   String @default("")
+  mentor     String @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ActivityCategory {
+  id          String @id @default(cuid())
+  name        String
+  unit        String @default("minutes") // "minutes" or "count"
+  sortOrder   Int @default(0)
+  isPersonal  Boolean @default(true) // true = counted in "Total de temps seul avec le Seigneur"
+  icon        String @default("")
+  entries     DailyEntry[]
+}
+
+model DailyEntry {
+  id                String @id @default(cuid())
+  date              String // YYYY-MM-DD format
+  categoryId        String
+  value             Int @default(0) // minutes or count depending on category
+  note              String @default("")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  category          ActivityCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([date, categoryId])
+}
+
+model Book {
+  id          String @id @default(cuid())
+  title       String
+  author      String @default("")
+  totalChapters Int @default(0)
+  currentChapter Int @default(0)
+  status      String @default("in_progress") // "in_progress" or "finished"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  chapterLogs BookChapterLog[]
+}
+
+model BookChapterLog {
+  id          String @id @default(cuid())
+  date        String // YYYY-MM-DD
+  bookId      String
+  chapters    Int @default(0)
+  createdAt   DateTime @default(now())
+
+  book        Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([date, bookId])
+}
+
+model BibleReadingLog {
+  id          String @id @default(cuid())
+  date        String // YYYY-MM-DD
+  chapters    Int @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([date])
+}
+
+model FinanceEntry {
+  id          String @id @default(cuid())
+  date        String // YYYY-MM-DD
+  type        String // "income" or "expense"
+  label       String
+  amount      Int @default(0)
+  category    String @default("") // "epargne", "don", or custom
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PrayerNeed {
+  id          String @id @default(cuid())
+  text        String
+  resolved    Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CustomActivity {
+  id          String @id @default(cuid())
+  name        String
+  icon        String @default("circle")
+  trackMode   String @default("count") // "count" or "timer"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  logs        CustomActivityLog[]
+}
+
+model CustomActivityLog {
+  id          String @id @default(cuid())
+  date        String // YYYY-MM-DD
+  activityId  String
+  completed   Boolean @default(false)
+  duration    Int @default(0) // seconds if trackMode is "timer"
+  note        String @default("")
+  createdAt   DateTime @default(now())
+
+  activity    CustomActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([date, activityId])
+}
