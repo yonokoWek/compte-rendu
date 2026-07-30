@@ -7,14 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id               String @id @default(cuid())
+  contact          String @unique
+  contactType      String @default("whatsapp") // "whatsapp" | "email"
+  name             String @default("")
+  pin              String @default("")
+  verified         Boolean @default(false)
+  verificationCode String @default("")
+  codeExpiresAt    DateTime?
+  themeColor       String @default("orange")
+  profile          UserProfile?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
 model UserProfile {
   id         String @id @default(cuid())
+  userId     String @unique
   firstName  String @default("")
   lastName   String @default("")
   assembly   String @default("")
   mentor     String @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ActivityGroup {
