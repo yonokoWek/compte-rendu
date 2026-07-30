@@ -8,62 +8,89 @@ datasource db {
 }
 
 model User {
-  id               String @id @default(cuid())
-  contact          String @unique
-  contactType      String @default("whatsapp") // "whatsapp" | "email"
-  name             String @default("")
-  pin              String @default("")
-  verified         Boolean @default(false)
-  verificationCode String @default("")
+  id               String           @id @default(cuid())
+  contact          String           @unique
+  contactType      String           @default("whatsapp") // "whatsapp" | "email"
+  name             String           @default("")
+  pin              String           @default("")
+  verified         Boolean          @default(false)
+  verificationCode String           @default("")
   codeExpiresAt    DateTime?
-  themeColor       String @default("orange")
+  themeColor       String           @default("orange")
   profile          UserProfile?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  sessions         Session[]
+  groups           ActivityGroup[]
+  categories       ActivityCategory[]
+  books            Book[]
+  bibleLogs        BibleReadingLog[]
+  notes            ReadingNote[]
+  finances         FinanceEntry[]
+  prayers          PrayerNeed[]
+  activities       CustomActivity[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserProfile {
-  id         String @id @default(cuid())
-  userId     String @unique
-  firstName  String @default("")
-  lastName   String @default("")
-  assembly   String @default("")
-  mentor     String @default("")
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  firstName  String   @default("")
+  lastName   String   @default("")
+  assembly   String   @default("")
+  mentor     String   @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ActivityGroup {
-  id          String @id @default(cuid())
+  id          String             @id @default(cuid())
   name        String
-  sortOrder   Int @default(0)
+  sortOrder   Int                @default(0)
+  userId      String
   categories  ActivityCategory[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ActivityCategory {
-  id          String @id @default(cuid())
+  id          String       @id @default(cuid())
   name        String
-  unit        String @default("minutes") // "minutes" or "count"
-  sortOrder   Int @default(0)
-  isPersonal  Boolean @default(true)
-  icon        String @default("")
+  unit        String       @default("minutes")
+  sortOrder   Int          @default(0)
+  isPersonal  Boolean      @default(true)
+  icon        String       @default("")
   groupId     String?
+  userId      String
   group       ActivityGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   entries     DailyEntry[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model DailyEntry {
-  id                String @id @default(cuid())
+  id                String           @id @default(cuid())
   date              String
   categoryId        String
-  value             Int @default(0)
-  note              String @default("")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  value             Int              @default(0)
+  note              String           @default("")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   category          ActivityCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
@@ -71,93 +98,110 @@ model DailyEntry {
 }
 
 model Book {
-  id          String @id @default(cuid())
-  title       String
-  author      String @default("")
-  totalChapters Int @default(0)
-  currentChapter Int @default(0)
-  status      String @default("in_progress")
-  pdfUrl      String @default("")
-  notes       ReadingNote[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  chapterLogs BookChapterLog[]
+  id             String           @id @default(cuid())
+  title          String
+  author         String           @default("")
+  totalChapters  Int              @default(0)
+  currentChapter Int              @default(0)
+  status         String           @default("in_progress")
+  pdfUrl         String           @default("")
+  userId         String
+  notes          ReadingNote[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  chapterLogs    BookChapterLog[]
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model BookChapterLog {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   date        String
   bookId      String
-  chapters    Int @default(0)
+  chapters    Int      @default(0)
   createdAt   DateTime @default(now())
 
-  book        Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@unique([date, bookId])
 }
 
 model BibleReadingLog {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   date        String
-  chapters    Int @default(0)
-  reference   String @default("")
+  chapters    Int      @default(0)
+  reference   String   @default("")
+  userId      String
   createdAt   DateTime @default(now())
 
-  @@unique([date])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([date, userId])
 }
 
 model ReadingNote {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   bookId      String?
-  bibleRef    String @default("")
+  bibleRef    String   @default("")
   content     String
-  positionX   Float @default(50)
-  positionY   Float @default(50)
+  positionX   Float    @default(50)
+  positionY   Float    @default(50)
+  userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  book        Book? @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book        Book?    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model FinanceEntry {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   date        String
   type        String
   label       String
-  amount      Int @default(0)
-  category    String @default("")
+  amount      Int      @default(0)
+  category    String   @default("")
+  userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PrayerNeed {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   text        String
-  resolved    Boolean @default(false)
+  resolved    Boolean  @default(false)
+  userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model CustomActivity {
-  id          String @id @default(cuid())
+  id          String              @id @default(cuid())
   name        String
-  icon        String @default("circle")
-  trackMode   String @default("count")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  icon        String              @default("circle")
+  trackMode   String              @default("count")
+  userId      String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   logs        CustomActivityLog[]
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model CustomActivityLog {
-  id          String @id @default(cuid())
+  id          String          @id @default(cuid())
   date        String
   activityId  String
-  completed   Boolean @default(false)
-  duration    Int @default(0)
-  note        String @default("")
-  createdAt   DateTime @default(now())
+  completed   Boolean         @default(false)
+  duration    Int             @default(0)
+  note        String          @default("")
+  createdAt   DateTime        @default(now())
 
-  activity    CustomActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activity    CustomActivity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   @@unique([date, activityId])
 }
