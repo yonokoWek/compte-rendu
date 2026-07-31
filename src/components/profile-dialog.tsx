@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { User, Save, Palette } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
 import ThemePicker from '@/components/theme-picker';
 
 export default function ProfileDialog() {
@@ -25,7 +26,7 @@ export default function ProfileDialog() {
 
   const { data: profile } = useQuery({
     queryKey: ['profile'],
-    queryFn: () => fetch('/api/profile').then((r) => r.json()),
+    queryFn: () => authFetch('/api/profile').then((r) => r.json()),
   });
 
   const [firstName, setFirstName] = React.useState('');
@@ -44,9 +45,8 @@ export default function ProfileDialog() {
 
   const saveProfile = useMutation({
     mutationFn: (data: { firstName: string; lastName: string; assembly: string; mentor: string }) =>
-      fetch('/api/profile', {
+      authFetch('/api/profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => {

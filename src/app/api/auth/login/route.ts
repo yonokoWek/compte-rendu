@@ -1,13 +1,6 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { createSession } from '@/lib/auth';
-
-function normalizePhone(contact: string): string {
-  let phone = contact.replace(/[\s\-]/g, '');
-  if (phone.startsWith('+')) phone = phone.slice(1);
-  if (phone.startsWith('0')) phone = '243' + phone.slice(1);
-  return phone;
-}
+import { createSession, normalizePhone } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {

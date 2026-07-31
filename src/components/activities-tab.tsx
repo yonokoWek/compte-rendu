@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Trash2, Timer, CheckSquare, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
 
 interface CustomActivity {
   id: string;
@@ -54,22 +55,21 @@ export default function ActivitiesTab() {
 
   const { data: activities = [] } = useQuery<CustomActivity[]>({
     queryKey: ['activities'],
-    queryFn: () => fetch('/api/activities').then((r) => r.json()),
+    queryFn: () => authFetch('/api/activities').then((r) => r.json()),
   });
 
   const { data: logs = [] } = useQuery<ActivityLog[]>({
     queryKey: ['activity-logs', period.startDate, period.endDate],
     queryFn: () =>
-      fetch(
+      authFetch(
         `/api/activity-logs?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`
       ).then((r) => r.json()),
   });
 
   const addActivity = useMutation({
     mutationFn: (data: { name: string; icon: string; trackMode: string }) =>
-      fetch('/api/activities', {
+      authFetch('/api/activities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => {
@@ -79,15 +79,14 @@ export default function ActivitiesTab() {
   });
 
   const deleteActivity = useMutation({
-    mutationFn: (id: string) => fetch(`/api/activities?id=${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => authFetch(`/api/activities?id=${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activities'] }),
   });
 
   const toggleLog = useMutation({
     mutationFn: (data: { date: string; activityId: string; completed: boolean }) =>
-      fetch('/api/activity-logs', {
+      authFetch('/api/activity-logs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity-logs'] }),
@@ -110,7 +109,7 @@ export default function ActivitiesTab() {
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
       {/* Add activity */}
-      <Card className="border-orange-200">
+      <Card className="border-[var(--theme-primary)]">
         <CardContent className="p-3 space-y-2">
           <Input
             placeholder="Nouvelle activité (ex: Proclamation, Lecture Biblique...)"
@@ -155,7 +154,7 @@ export default function ActivitiesTab() {
                 }
               }}
               disabled={!newName.trim() || addActivity.isPending}
-              className="bg-orange-600 hover:bg-orange-700 text-white text-xs shrink-0"
+              className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs shrink-0"
             >
               <Plus className="h-3 w-3 mr-1" />
               Ajouter
@@ -194,7 +193,7 @@ export default function ActivitiesTab() {
                     {/* Progress bar */}
                     <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-orange-500 rounded-full transition-all"
+                        className="h-full bg-[var(--theme-primary)] rounded-full transition-all"
                         style={{ width: `${rate}%` }}
                       />
                     </div>
@@ -223,8 +222,8 @@ export default function ActivitiesTab() {
                         onClick={() => toggleLog.mutate({ date: dateStr, activityId: activity.id, completed: !isChecked })}
                         className={`flex flex-col items-center min-w-[36px] p-1 rounded-lg text-[10px] transition-colors ${
                           isChecked
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-orange-100'
+                            ? 'bg-[var(--theme-primary)] text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-[var(--theme-primary-light)]'
                         }`}
                       >
                         <span className="font-semibold">{DAY_NAMES_SHORT[adjustedIndex]}</span>

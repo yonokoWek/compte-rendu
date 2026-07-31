@@ -13,6 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Download, CalendarDays, ChevronLeft, ChevronRight, Clock, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
 import { formatMinutes } from '@/store/app-store';
 
 interface Category {
@@ -45,7 +46,7 @@ export default function HistoriqueTab() {
   // Fetch categories for computing totals
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories'],
-    queryFn: () => fetch('/api/categories').then((r) => r.json()),
+    queryFn: () => authFetch('/api/categories').then((r) => r.json()),
   });
 
   // Generate list of past weeks
@@ -60,7 +61,7 @@ export default function HistoriqueTab() {
   const { data: allEntries = [] } = useQuery<DailyEntry[]>({
     queryKey: ['all-entries'],
     queryFn: () =>
-      fetch(
+      authFetch(
         `/api/entries?startDate=${format(weekHistory[weekHistory.length - 1].start, 'yyyy-MM-dd')}&endDate=${format(now, 'yyyy-MM-dd')}`
       ).then((r) => r.json()),
   });
@@ -68,9 +69,8 @@ export default function HistoriqueTab() {
   const handleExportPDF = async (start: Date, end: Date) => {
     setPdfLoading(true);
     try {
-      const reportRes = await fetch('/api/report', {
+      const reportRes = await authFetch('/api/report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDate: format(start, 'yyyy-MM-dd'),
           endDate: format(end, 'yyyy-MM-dd'),
@@ -78,9 +78,8 @@ export default function HistoriqueTab() {
       });
       const reportData = await reportRes.json();
 
-      const pdfRes = await fetch('/api/generate-pdf', {
+      const pdfRes = await authFetch('/api/generate-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: reportData.html }),
       });
       const pdfData = await pdfRes.json();
@@ -125,12 +124,12 @@ export default function HistoriqueTab() {
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
       <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-        <History className="h-5 w-5 text-orange-600" />
+        <History className="h-5 w-5 text-[var(--theme-primary)]" />
         Historique
       </h2>
 
       {/* Custom period export */}
-      <Card className="border-orange-200">
+      <Card className="border-[var(--theme-primary)]">
         <CardContent className="p-3">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Exporter une période personnalisée</h3>
           <div className="flex flex-wrap gap-2 items-end">
@@ -173,7 +172,7 @@ export default function HistoriqueTab() {
             <Button
               onClick={handleCustomExport}
               disabled={pdfLoading || !selectedStart || !selectedEnd}
-              className="bg-orange-600 hover:bg-orange-700 text-white text-xs"
+              className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs"
             >
               <Download className="h-3 w-3 mr-1" />
               Exporter PDF
@@ -236,7 +235,7 @@ export default function HistoriqueTab() {
             format(week.start, 'yyyy-MM-dd') === format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
           return (
-            <Card key={format(week.start, 'yyyy-MM-dd')} className={isCurrentWeek ? 'border-orange-300' : ''}>
+            <Card key={format(week.start, 'yyyy-MM-dd')} className={isCurrentWeek ? 'border-[var(--theme-primary)]' : ''}>
               <CardContent className="p-3 flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">
@@ -244,7 +243,7 @@ export default function HistoriqueTab() {
                     {format(week.end, 'd MMM yyyy', { locale: fr })}
                   </p>
                   <div className="flex items-center gap-3 mt-1">
-                    <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">
+                    <Badge variant="secondary" className="text-[10px] bg-[var(--theme-primary-light)] text-[var(--theme-primary-hover)]">
                       {formatMinutes(week.personalTotal)} avec le Seigneur
                     </Badge>
                     <span className="text-[10px] text-gray-400">
@@ -255,7 +254,7 @@ export default function HistoriqueTab() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-xs shrink-0 text-orange-600 border-orange-200"
+                  className="text-xs shrink-0 text-[var(--theme-primary)] border-[var(--theme-primary)]"
                   onClick={() => handleExportPDF(week.start, week.end)}
                   disabled={pdfLoading}
                 >

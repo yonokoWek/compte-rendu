@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
 
 interface FinanceEntry {
   id: string;
@@ -41,16 +42,15 @@ export default function FinancesTab() {
   const { data: entries = [] } = useQuery<FinanceEntry[]>({
     queryKey: ['finances', period.startDate, period.endDate],
     queryFn: () =>
-      fetch(
+      authFetch(
         `/api/finances?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`
       ).then((r) => r.json()),
   });
 
   const addEntry = useMutation({
     mutationFn: (data: { date: string; type: string; label: string; amount: number; category: string }) =>
-      fetch('/api/finances', {
+      authFetch('/api/finances', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => {
@@ -62,7 +62,7 @@ export default function FinancesTab() {
   });
 
   const deleteEntry = useMutation({
-    mutationFn: (id: string) => fetch(`/api/finances?id=${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => authFetch(`/api/finances?id=${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['finances'] }),
   });
 
@@ -105,17 +105,17 @@ export default function FinancesTab() {
             <p className="text-[10px] text-gray-600">Sorties</p>
           </CardContent>
         </Card>
-        <Card className="border-orange-200 bg-orange-50">
+        <Card className="border-[var(--theme-primary)] bg-[var(--theme-primary-light)]">
           <CardContent className="p-3 text-center">
-            <Wallet className="h-4 w-4 text-orange-600 mx-auto mb-1" />
-            <p className="text-lg font-bold text-orange-600">{formatAmount(balance)}</p>
+            <Wallet className="h-4 w-4 text-[var(--theme-primary)] mx-auto mb-1" />
+            <p className="text-lg font-bold text-[var(--theme-primary)]">{formatAmount(balance)}</p>
             <p className="text-[10px] text-gray-600">Solde</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Add transaction */}
-      <Card className="border-orange-200">
+      <Card className="border-[var(--theme-primary)]">
         <CardContent className="p-3 space-y-2">
           <div className="flex gap-2">
             <Select value={newType} onValueChange={(v) => setNewType(v as 'income' | 'expense')}>
@@ -166,7 +166,7 @@ export default function FinancesTab() {
               toast.success('Transaction ajoutée');
             }}
             disabled={!newLabel.trim() || !newAmount || addEntry.isPending}
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white text-xs"
+            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs"
           >
             <Plus className="h-3 w-3 mr-1" />
             Ajouter une transaction

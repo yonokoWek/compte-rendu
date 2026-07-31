@@ -51,6 +51,17 @@ export async function requireAuth(request: Request): Promise<{ user: AuthUser; r
 }
 
 /**
+ * Normalize a phone number for consistent storage.
+ * Removes spaces/dashes, strips leading +, replaces leading 0 with DRC country code 243.
+ */
+export function normalizePhone(contact: string): string {
+  let phone = contact.replace(/[\s\-]/g, '');
+  if (phone.startsWith('+')) phone = phone.slice(1);
+  if (phone.startsWith('0')) phone = '243' + phone.slice(1);
+  return phone;
+}
+
+/**
  * Generate a 4-digit verification code.
  */
 export function generateCode(): string {

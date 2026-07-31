@@ -128,7 +128,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact, code, pin, name }),
+        body: JSON.stringify({ contact, code, pin, name, contactType: data.contactType }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erreur de vérification');

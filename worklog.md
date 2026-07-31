@@ -103,3 +103,71 @@ Stage Summary:
 - Zustand store extended with themeColor, sessionToken, isAuthenticated
 - Lint clean, all files compile
 - Key files: src/lib/themes.ts (new), src/components/auth-screen.tsx (new), src/components/theme-picker.tsx (new), src/store/app-store.ts (updated), src/components/app-layout.tsx (updated), src/components/profile-dialog.tsx (updated)
+
+---
+Task ID: 6
+Agent: Main
+Task: Replace hardcoded orange colors with CSS variables and fetch with authFetch in 5 tabs + profile dialog
+
+Work Log:
+- CHANGE 1: Replaced all hardcoded orange Tailwind classes with CSS variable references across 6 files:
+  - compte-rendu-tab.tsx: ~25 orange references replaced
+  - lecture-tab.tsx: ~30 orange references replaced
+  - finances-tab.tsx: ~6 orange references replaced
+  - activities-tab.tsx: ~5 orange references replaced
+  - historique-tab.tsx: ~7 orange references replaced
+  - profile-dialog.tsx: already had CSS variables from prior task, no changes needed
+  - Pattern mappings: bg-orange-600/500/400 → bg-[var(--theme-primary)], bg-orange-700 → bg-[var(--theme-primary-hover)], bg-orange-50/100 → bg-[var(--theme-primary-light)], text-orange-600/500 → text-[var(--theme-primary)], text-orange-700 → text-[var(--theme-primary-hover)], border-orange-200/300 → border-[var(--theme-primary)], border-orange-100 → border-[var(--theme-primary-light)], border-l-orange-400 → border-l-[var(--theme-primary)], and all hover/focus variants
+  - auth-screen.tsx and theme-picker.tsx left untouched as instructed
+- CHANGE 2: Replaced all fetch() calls with authFetch() and added imports:
+  - Added `import { authFetch } from '@/lib/api'` to all 6 files
+  - compte-rendu-tab.tsx: 12 fetch→authFetch, removed Content-Type headers from 6 calls
+  - lecture-tab.tsx: 17 fetch→authFetch, removed Content-Type headers from 10 calls (FormData upload kept without Content-Type)
+  - finances-tab.tsx: 4 fetch→authFetch, removed Content-Type header from 1 call
+  - activities-tab.tsx: 6 fetch→authFetch, removed Content-Type headers from 2 calls
+  - historique-tab.tsx: 5 fetch→authFetch, removed Content-Type headers from 2 calls
+  - profile-dialog.tsx: 3 fetch→authFetch (1 import + 2 calls), removed Content-Type header from 1 call
+- Verified: zero `orange` references remain in any of the 6 target files
+- Verified: zero `fetch(` calls remain in any of the 6 target files
+- Verified: zero `'Content-Type': 'application/json'` headers remain in any of the 6 target files
+- Lint: only pre-existing error in page.tsx (unrelated), all modified files clean
+
+Stage Summary:
+- All 6 components now fully theme-aware with CSS variable references instead of hardcoded orange colors
+- All 6 components now use authFetch() for authenticated API calls (47 total calls converted)
+- authFetch automatically handles Content-Type and Authorization headers
+- FormData uploads in lecture-tab.tsx correctly left without Content-Type (authFetch handles this)
+- Key files: src/components/compte-rendu-tab.tsx, lecture-tab.tsx, finances-tab.tsx, activities-tab.tsx, historique-tab.tsx, profile-dialog.tsx (all updated)
+
+---
+Task ID: 5
+Agent: Main
+Task: Wire auth gate, header, logout, and fix phone normalization bug
+
+Work Log:
+- Created /src/lib/api.ts: authFetch() wrapper that auto-injects Bearer token from localStorage, getAuthHeaders() helper
+- Rewrote /src/app/page.tsx:
+  - Added session check on mount via GET /api/auth/session
+  - Three states: loading (spinner) → unauth (AuthScreen) → auth (AppLayout + tabs)
+  - Added sticky header with profile avatar button, "Compte Rendu" title, and logout button
+  - handleAuthSuccess: stores token, fetches theme
+  - handleLogout: calls /api/auth/logout, clears localStorage, resets store, clears QueryClient
+  - Fixed React lint error (set-state-in-effect) by using single `status` state instead of two separate states
+- Fixed phone normalization bug: verify and login routes didn't normalize phone numbers (register did)
+  - Extracted normalizePhone() to /src/lib/auth.ts as shared export
+  - Updated register, verify, and login routes to use shared normalizePhone
+  - Updated auth-screen.tsx to send contactType in verify request body
+- Verified end-to-end via Agent Browser:
+  1. Registration: WhatsApp tab → phone input → send code → OTP entry → name + PIN → account created → app shown
+  2. Theme picker: opened profile dialog, clicked Émeraude, color changed
+  3. Tab navigation: Rapport, Lecture, Finances all render correctly
+  4. Logout: clicked Déconnexion → back to auth screen
+  5. Login: phone input → continue → PIN → logged in successfully
+- Lint clean (zero errors)
+
+Stage Summary:
+- Full auth flow working: register → verify → login → logout → re-login
+- Theme system working with 8 presets, persisted to DB, applied via CSS variables
+- All API routes protected with Bearer token authentication
+- Multi-user data isolation active on all routes
+- Key files: src/app/page.tsx (rewritten), src/lib/auth.ts (updated), src/lib/api.ts (new), src/app/api/auth/verify/route.ts (fixed), src/app/api/auth/login/route.ts (updated), src/components/auth-screen.tsx (updated)

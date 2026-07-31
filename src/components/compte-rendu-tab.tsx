@@ -47,6 +47,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { authFetch } from '@/lib/api';
 
 interface Category {
   id: string;
@@ -106,7 +107,7 @@ export default function CompteRenduTab() {
     groups: Group[];
   }>({
     queryKey: ['categories'],
-    queryFn: () => fetch('/api/categories').then((r) => r.json()),
+    queryFn: () => authFetch('/api/categories').then((r) => r.json()),
   });
   const categories = catData?.categories || [];
   const groups = catData?.groups || [];
@@ -115,7 +116,7 @@ export default function CompteRenduTab() {
   const { data: entries = [], isLoading: entriesLoading } = useQuery<DailyEntry[]>({
     queryKey: ['entries', period.startDate, period.endDate],
     queryFn: () =>
-      fetch(
+      authFetch(
         `/api/entries?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`
       ).then((r) => r.json()),
   });
@@ -123,15 +124,14 @@ export default function CompteRenduTab() {
   // Fetch profile
   const { data: profile } = useQuery<UserProfile>({
     queryKey: ['profile'],
-    queryFn: () => fetch('/api/profile').then((r) => r.json()),
+    queryFn: () => authFetch('/api/profile').then((r) => r.json()),
   });
 
   // Save entry mutation
   const saveEntry = useMutation({
     mutationFn: (data: { date: string; categoryId: string; value: number }) =>
-      fetch('/api/entries', {
+      authFetch('/api/entries', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }).then((r) => r.json()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['entries'] }),
@@ -140,29 +140,29 @@ export default function CompteRenduTab() {
   // Category mutations
   const addCategory = useMutation({
     mutationFn: (data: { type: 'category'; name: string; unit: string; isPersonal: boolean; groupId?: string }) =>
-      fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()),
+      authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewCatName(''); },
   });
 
   const deleteCategory = useMutation({
-    mutationFn: (id: string) => fetch(`/api/categories?type=category&id=${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => authFetch(`/api/categories?type=category&id=${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
   });
 
   const addGroup = useMutation({
     mutationFn: (name: string) =>
-      fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'group', name }) }).then((r) => r.json()),
+      authFetch('/api/categories', { method: 'POST', body: JSON.stringify({ type: 'group', name }) }).then((r) => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewGroupName(''); toast.success('Groupe créé'); },
   });
 
   const deleteGroup = useMutation({
-    mutationFn: (id: string) => fetch(`/api/categories?type=group&id=${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => authFetch(`/api/categories?type=group&id=${id}`, { method: 'DELETE' }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Groupe supprimé'); },
   });
 
   const assignToGroup = useMutation({
     mutationFn: (data: { type: 'assign'; categoryId: string; groupId: string | null }) =>
-      fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then((r) => r.json()),
+      authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setAssigningCat(null); toast.success('Activité déplacée'); },
   });
 
@@ -220,15 +220,13 @@ export default function CompteRenduTab() {
   const handleExportPDF = async () => {
     setPdfLoading(true);
     try {
-      const reportRes = await fetch('/api/report', {
+      const reportRes = await authFetch('/api/report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd') }),
       });
       const reportData = await reportRes.json();
-      const pdfRes = await fetch('/api/generate-pdf', {
+      const pdfRes = await authFetch('/api/generate-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html: reportData.html }),
       });
       const pdfData = await pdfRes.json();
@@ -263,8 +261,8 @@ export default function CompteRenduTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="bg-orange-100 p-2 rounded-full">
-            <CalendarDays className="h-5 w-5 text-orange-600" />
+          <div className="bg-[var(--theme-primary-light)] p-2 rounded-full">
+            <CalendarDays className="h-5 w-5 text-[var(--theme-primary)]" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900">Compte Rendu</h1>
@@ -278,7 +276,7 @@ export default function CompteRenduTab() {
           <Button variant="ghost" size="icon" onClick={() => setProfileDialogOpen(true)}>
             <User className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={pdfLoading} className="gap-1 text-orange-600 border-orange-200 hover:bg-orange-50">
+          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={pdfLoading} className="gap-1 text-[var(--theme-primary)] border-[var(--theme-primary)] hover:bg-[var(--theme-primary-light)]">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">PDF</span>
           </Button>
@@ -286,7 +284,7 @@ export default function CompteRenduTab() {
       </div>
 
       {/* Period selector */}
-      <Card className="border-orange-200">
+      <Card className="border-[var(--theme-primary)]">
         <CardContent className="p-3">
           <div className="flex items-center justify-between gap-2">
             <Button variant="ghost" size="icon" className="shrink-0" onClick={prevPeriod}>
@@ -320,19 +318,19 @@ export default function CompteRenduTab() {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="sticky left-0 bg-orange-500 text-white px-2 py-2 text-left font-semibold text-xs min-w-[130px] z-10 rounded-tl-lg">Activité</th>
-                  <th className="bg-orange-400 text-white px-1 py-2 text-center font-semibold text-xs w-10">{isSingleWeek ? 'Min' : ''}</th>
+                  <th className="sticky left-0 bg-[var(--theme-primary)] text-white px-2 py-2 text-left font-semibold text-xs min-w-[130px] z-10 rounded-tl-lg">Activité</th>
+                  <th className="bg-[var(--theme-primary)] text-white px-1 py-2 text-center font-semibold text-xs w-10">{isSingleWeek ? 'Min' : ''}</th>
                   {columns.map((col) => (
-                    <th key={col.key} className="bg-orange-500 text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px]">{col.label}</th>
+                    <th key={col.key} className="bg-[var(--theme-primary)] text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px]">{col.label}</th>
                   ))}
-                  <th className="bg-orange-600 text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px] rounded-tr-lg">Total</th>
+                  <th className="bg-[var(--theme-primary)] text-white px-2 py-2 text-center font-semibold text-xs min-w-[55px] rounded-tr-lg">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {entriesLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i}>
-                      <td className="bg-orange-100 px-2 py-2"><Skeleton className="h-4 w-24" /></td>
+                      <td className="bg-[var(--theme-primary-light)] px-2 py-2"><Skeleton className="h-4 w-24" /></td>
                       {columns.map((_, j) => <td key={j} className="px-2 py-2"><Skeleton className="h-6 w-8 mx-auto" /></td>)}
                     </tr>
                   ))
@@ -344,17 +342,17 @@ export default function CompteRenduTab() {
                       return (
                         <React.Fragment key={`group-${gId}`}>
                           <tr>
-                            <td colSpan={columns.length + 3} className="bg-orange-600 text-white px-3 py-1 text-left text-xs font-bold">
+                            <td colSpan={columns.length + 3} className="bg-[var(--theme-primary)] text-white px-3 py-1 text-left text-xs font-bold">
                               <FolderOpen className="h-3 w-3 inline mr-1" />
                               {groupName}
                             </td>
                           </tr>
                           {cats.map((cat, rowIndex) => (
-                            <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-orange-50/50'}>
-                              <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-orange-100">
-                                <span className="text-[10px] text-orange-500">●</span> {cat.name}
+                            <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-[var(--theme-primary-light)]/50'}>
+                              <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-[var(--theme-primary-light)]">
+                                <span className="text-[10px] text-[var(--theme-primary)]">●</span> {cat.name}
                               </td>
-                              <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-orange-100/50">
+                              <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-[var(--theme-primary-light)]/50">
                                 {cat.unit === 'minutes' ? 'min' : 'Part.'}
                               </td>
                               {columns.map((col) => {
@@ -363,11 +361,11 @@ export default function CompteRenduTab() {
                                   <td key={col.key} className="px-1 py-1 text-center">
                                     <input type="number" min="0" value={val || ''} onChange={(e) => handleCellChange(cat.id, col.key, e.target.value)}
                                       placeholder="0"
-                                      className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-orange-300 focus:border-orange-400 focus:bg-orange-50 focus:outline-none transition-colors" />
+                                      className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-[var(--theme-primary)] focus:border-[var(--theme-primary)] focus:bg-[var(--theme-primary-light)] focus:outline-none transition-colors" />
                                   </td>
                                 );
                               })}
-                              <td className="px-2 py-1.5 text-center font-bold text-xs bg-orange-100/80">
+                              <td className="px-2 py-1.5 text-center font-bold text-xs bg-[var(--theme-primary-light)]/80">
                                 {cat.unit === 'minutes' ? formatMinutes(getRowTotal(cat.id)) : getRowTotal(cat.id) || ''}
                               </td>
                             </tr>
@@ -385,11 +383,11 @@ export default function CompteRenduTab() {
                           </td>
                         </tr>
                         {ungrouped.map((cat, rowIndex) => (
-                          <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-orange-50/50'}>
-                            <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-orange-100">
+                          <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-[var(--theme-primary-light)]/50'}>
+                            <td className="sticky left-0 px-2 py-1.5 text-left font-medium text-xs bg-inherit z-10 whitespace-nowrap border-r border-[var(--theme-primary-light)]">
                               <span className="text-[10px] text-gray-400">●</span> {cat.name}
                             </td>
-                            <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-orange-100/50">
+                            <td className="px-1 py-1.5 text-center text-[10px] text-gray-400 bg-[var(--theme-primary-light)]/50">
                               {cat.unit === 'minutes' ? 'min' : 'Part.'}
                             </td>
                             {columns.map((col) => {
@@ -398,11 +396,11 @@ export default function CompteRenduTab() {
                                 <td key={col.key} className="px-1 py-1 text-center">
                                   <input type="number" min="0" value={val || ''} onChange={(e) => handleCellChange(cat.id, col.key, e.target.value)}
                                     placeholder="0"
-                                    className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-orange-300 focus:border-orange-400 focus:bg-orange-50 focus:outline-none transition-colors" />
+                                    className="w-12 h-7 text-center text-xs bg-transparent border border-transparent rounded hover:border-[var(--theme-primary)] focus:border-[var(--theme-primary)] focus:bg-[var(--theme-primary-light)] focus:outline-none transition-colors" />
                                 </td>
                               );
                             })}
-                            <td className="px-2 py-1.5 text-center font-bold text-xs bg-orange-100/80">
+                            <td className="px-2 py-1.5 text-center font-bold text-xs bg-[var(--theme-primary-light)]/80">
                               {cat.unit === 'minutes' ? formatMinutes(getRowTotal(cat.id)) : getRowTotal(cat.id) || ''}
                             </td>
                           </tr>
@@ -411,7 +409,7 @@ export default function CompteRenduTab() {
                     )}
 
                     {/* Personal total row */}
-                    <tr className="bg-orange-700">
+                    <tr className="bg-[var(--theme-primary-hover)]">
                       <td colSpan={2} className="sticky left-0 px-2 py-2 text-left font-bold text-xs text-white z-10">
                         Temps seul avec le Seigneur
                       </td>
@@ -437,7 +435,7 @@ export default function CompteRenduTab() {
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-orange-600" />
+              <Settings className="h-5 w-5 text-[var(--theme-primary)]" />
               Gérer les activités
             </DialogTitle>
             <DialogDescription>
@@ -448,12 +446,12 @@ export default function CompteRenduTab() {
 
           <div className="space-y-4 py-2">
             {/* Create group */}
-            <Card className="border-orange-200">
+            <Card className="border-[var(--theme-primary)]">
               <CardContent className="p-3 space-y-2">
                 <h4 className="text-xs font-semibold text-gray-700">Créer un groupe</h4>
                 <div className="flex gap-2">
                   <Input placeholder="Nom du groupe" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="text-sm flex-1" />
-                  <Button onClick={() => { if (newGroupName.trim()) addGroup.mutate(newGroupName); }} disabled={!newGroupName.trim() || addGroup.isPending} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                  <Button onClick={() => { if (newGroupName.trim()) addGroup.mutate(newGroupName); }} disabled={!newGroupName.trim() || addGroup.isPending} size="sm" className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs">
                     <FolderPlus className="h-3 w-3 mr-1" /> Créer
                   </Button>
                 </div>
@@ -465,11 +463,11 @@ export default function CompteRenduTab() {
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-gray-700">Groupes existants</h4>
                 {groups.map((group) => (
-                  <Card key={group.id} className="border-l-4 border-l-orange-400">
+                  <Card key={group.id} className="border-l-4 border-l-[var(--theme-primary)]">
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-orange-500" />
+                          <FolderOpen className="h-4 w-4 text-[var(--theme-primary)]" />
                           <span className="text-sm font-semibold">{group.name}</span>
                           <span className="text-[10px] text-gray-400">({group.categories.length} activités)</span>
                         </div>
@@ -479,7 +477,7 @@ export default function CompteRenduTab() {
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {group.categories.map((cat) => (
-                          <span key={cat.id} className="inline-flex items-center gap-1 text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                          <span key={cat.id} className="inline-flex items-center gap-1 text-[10px] bg-[var(--theme-primary-light)] text-[var(--theme-primary-hover)] px-2 py-0.5 rounded-full">
                             {cat.name}
                             <button onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })} className="hover:text-red-500">
                               <X className="h-2.5 w-2.5" />
@@ -516,7 +514,7 @@ export default function CompteRenduTab() {
                     Personnel (compté dans le total)
                   </label>
                 </div>
-                <Button onClick={() => { if (newCatName.trim()) addCategory.mutate({ type: 'category', name: newCatName, unit: newCatUnit, isPersonal: newCatPersonal }); }} disabled={!newCatName.trim()} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                <Button onClick={() => { if (newCatName.trim()) addCategory.mutate({ type: 'category', name: newCatName, unit: newCatUnit, isPersonal: newCatPersonal }); }} disabled={!newCatName.trim()} size="sm" className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs">
                   <Plus className="h-3 w-3 mr-1" /> Ajouter
                 </Button>
               </CardContent>

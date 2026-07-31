@@ -1,16 +1,21 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { createSession } from '@/lib/auth';
+import { createSession, normalizePhone } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
-    const { contact, code, pin, name } = await request.json();
+    const { contact, code, pin, name, contactType } = await request.json();
 
     if (!contact || !code || !pin) {
       return NextResponse.json({ error: 'Contact, code et PIN requis' }, { status: 400 });
     }
 
-    const user = await db.user.findUnique({ where: { contact } });
+    // Normalize the contact the same way as register
+    const normalizedContact = contactType === 'email'
+      ? contact.trim().toLowerCase()
+      : normalizePhone(contact);
+
+    const user = await db.user.findUnique({ where: { contact: normalizedContact } });
     if (!user) {
       return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
     }
