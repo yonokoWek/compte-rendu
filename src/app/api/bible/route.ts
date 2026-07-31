@@ -1,13 +1,17 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { userId: auth.user.id };
     if (startDate && endDate) {
       where.date = { gte: startDate, lte: endDate };
     }
@@ -21,9 +25,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const data = await request.json();
     const log = await db.bibleReadingLog.upsert({
-      where: { date: data.date },
+      where: { date_userId: { date: data.date, userId: auth.user.id } },
       update: {
         chapters: data.chapters || 0,
         reference: data.reference || '',
@@ -32,6 +39,7 @@ export async function POST(request: Request) {
         date: data.date,
         chapters: data.chapters || 0,
         reference: data.reference || '',
+        userId: auth.user.id,
       },
     });
     return NextResponse.json(log);

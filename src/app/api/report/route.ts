@@ -1,33 +1,41 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { format, eachDayOfInterval, eachWeekOfInterval, addWeeks, startOfWeek, endOfWeek, differenceInCalendarDays } from 'date-fns';
+import { requireAuth } from '@/lib/auth';
+import { format, eachDayOfInterval, eachWeekOfInterval, addWeeks, endOfWeek, differenceInCalendarDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const { startDate, endDate } = await request.json();
     const start = new Date(startDate);
     const end = new Date(endDate);
     const totalDays = differenceInCalendarDays(end, start) + 1;
     const isSingleWeek = totalDays <= 7;
 
-    // Fetch only grouped categories (those assigned to a group)
+    // Fetch only grouped categories (those assigned to a group) for this user
     const categories = await db.activityCategory.findMany({
-      where: { groupId: { not: null } },
+      where: { groupId: { not: null }, userId: auth.user.id },
       orderBy: { sortOrder: 'asc' },
       include: { group: true },
     });
 
-    const profile = await db.userProfile.findFirst();
-    const books = await db.book.findMany({ orderBy: { createdAt: 'desc' } });
-    const prayers = await db.prayerNeed.findMany({ orderBy: { createdAt: 'desc' } });
+    const profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
+    const books = await db.book.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
+    const prayers = await db.prayerNeed.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
     const entries = await db.dailyEntry.findMany({
       where: { date: { gte: startDate, lte: endDate } },
       include: { category: true },
     });
 
+    // Filter entries to only include those belonging to this user's categories
+    const userCategoryIds = categories.map((c) => c.id);
+    const userEntries = entries.filter((e) => userCategoryIds.includes(e.categoryId));
+
     const entryMap: Record<string, number> = {};
-    for (const e of entries) {
+    for (const e of userEntries) {
       entryMap[`${e.date}_${e.categoryId}`] = e.value;
     }
 

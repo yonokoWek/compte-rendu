@@ -1,15 +1,32 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
+    // Get all category IDs for this user
+    const userCategories = await db.activityCategory.findMany({
+      where: { userId: auth.user.id },
+      select: { id: true },
+    });
+    const categoryIds = userCategories.map((c) => c.id);
+
     const where: Record<string, unknown> = {};
     if (startDate && endDate) {
       where.date = { gte: startDate, lte: endDate };
+    }
+    if (categoryIds.length > 0) {
+      where.categoryId = { in: categoryIds };
+    } else {
+      // No categories for this user, return empty
+      return NextResponse.json([]);
     }
 
     const entries = await db.dailyEntry.findMany({
@@ -26,7 +43,19 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const data = await request.json();
+
+    // Verify category belongs to this user
+    const category = await db.activityCategory.findUnique({
+      where: { id: data.categoryId },
+    });
+    if (!category || category.userId !== auth.user.id) {
+      return NextResponse.json({ error: 'Catégorie non trouvée' }, { status: 404 });
+    }
+
     const entry = await db.dailyEntry.upsert({
       where: {
         date_categoryId: {
@@ -51,12 +80,23 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const categoryId = searchParams.get('categoryId');
 
     if (!date || !categoryId) {
       return NextResponse.json({ error: 'Missing params' }, { status: 400 });
+    }
+
+    // Verify category belongs to this user
+    const category = await db.activityCategory.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category || category.userId !== auth.user.id) {
+      return NextResponse.json({ error: 'Non trouvé' }, { status: 404 });
     }
 
     await db.dailyEntry.delete({

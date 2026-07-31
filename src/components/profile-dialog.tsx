@@ -13,8 +13,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { User, Save } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { User, Save, Palette } from 'lucide-react';
 import { toast } from 'sonner';
+import ThemePicker from '@/components/theme-picker';
 
 export default function ProfileDialog() {
   const open = useAppStore((s) => s.profileDialogOpen);
@@ -56,10 +58,10 @@ export default function ProfileDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-orange-600" />
+            <User className="h-5 w-5 text-[var(--theme-primary)]" />
             Mon Profil
           </DialogTitle>
           <DialogDescription>
@@ -110,11 +112,22 @@ export default function ProfileDialog() {
               saveProfile.mutate({ firstName, lastName, assembly, mentor })
             }
             disabled={saveProfile.isPending}
-            className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white"
           >
             <Save className="h-4 w-4 mr-2" />
             Enregistrer
           </Button>
+
+          <Separator />
+
+          {/* Theme section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Palette className="h-4 w-4 text-[var(--theme-primary)]" />
+              <h4 className="text-sm font-semibold">Couleur du thème</h4>
+            </div>
+            <ThemePicker />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

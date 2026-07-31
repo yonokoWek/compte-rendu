@@ -4,6 +4,7 @@ import React from 'react';
 import { FileText, BookOpen, Wallet, CheckSquare, History } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { cn } from '@/lib/utils';
+import { getPreset, applyThemeCSSVariables } from '@/lib/themes';
 
 const tabs = [
   { id: 'rapport', label: 'Rapport', icon: FileText },
@@ -16,9 +17,13 @@ const tabs = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const themeColor = useAppStore((s) => s.themeColor);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div
+      className="min-h-screen flex flex-col bg-gray-50"
+      style={applyThemeCSSVariables(getPreset(themeColor))}
+    >
       {/* Main content area */}
       <main className="flex-1 pb-20 overflow-auto">
         {children}
@@ -37,14 +42,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   'flex flex-col items-center py-2 px-3 text-xs transition-colors min-w-[56px]',
                   isActive
-                    ? 'text-orange-600'
+                    ? 'text-[var(--theme-primary)]'
                     : 'text-gray-500 hover:text-gray-700'
                 )}
               >
                 <Icon className={cn('h-5 w-5 mb-0.5', isActive && 'stroke-[2.5px]')} />
                 <span className={cn(isActive && 'font-semibold')}>{tab.label}</span>
                 {isActive && (
-                  <div className="w-1 h-1 rounded-full bg-orange-600 mt-0.5" />
+                  <div className="w-1 h-1 rounded-full bg-[var(--theme-primary)] mt-0.5" />
                 )}
               </button>
             );

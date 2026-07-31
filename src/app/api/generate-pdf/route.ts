@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import { chromium } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const { html } = await request.json();
 
     const tmpDir = '/tmp/pdf-gen';

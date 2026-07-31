@@ -1,12 +1,16 @@
 import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    let profile = await db.userProfile.findFirst();
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
+    let profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
     if (!profile) {
       profile = await db.userProfile.create({
-        data: { firstName: '', lastName: '', assembly: '', mentor: '' },
+        data: { userId: auth.user.id, firstName: '', lastName: '', assembly: '', mentor: '' },
       });
     }
     return NextResponse.json(profile);
@@ -17,8 +21,11 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const data = await request.json();
-    let profile = await db.userProfile.findFirst();
+    let profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
     if (profile) {
       profile = await db.userProfile.update({
         where: { id: profile.id },
@@ -32,6 +39,7 @@ export async function PUT(request: Request) {
     } else {
       profile = await db.userProfile.create({
         data: {
+          userId: auth.user.id,
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           assembly: data.assembly || '',

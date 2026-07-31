@@ -24,6 +24,11 @@ interface AppState {
   setSidebarOpen: (open: boolean) => void;
   profileDialogOpen: boolean;
   setProfileDialogOpen: (open: boolean) => void;
+  themeColor: string;
+  setThemeColor: (color: string) => void;
+  sessionToken: string | null;
+  setSessionToken: (token: string | null) => void;
+  isAuthenticated: boolean;
 }
 
 function getPeriod(type: PeriodType, offset: number = 0): PeriodRange {
@@ -79,6 +84,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   profileDialogOpen: false,
   setProfileDialogOpen: (open) => set({ profileDialogOpen: open }),
+  themeColor: 'orange',
+  setThemeColor: (color) => set({ themeColor: color }),
+  sessionToken: null,
+  isAuthenticated: false,
+  setSessionToken: (token) => set({ sessionToken: token, isAuthenticated: token !== null }),
 }));
 
 // Helper functions
