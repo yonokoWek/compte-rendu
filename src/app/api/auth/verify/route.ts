@@ -59,6 +59,7 @@ export async function POST(request: Request) {
         name: name || user.name,
         verified: true,
         themeColor: user.themeColor,
+        language: user.language,
       },
     });
   } catch (error) {

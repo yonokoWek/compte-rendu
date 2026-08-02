@@ -3,11 +3,9 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, eachDayOfInterval, getDay, differenceInCalendarDays } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import { useAppStore, DAY_NAMES_SHORT, formatMinutes, getDaysInRange, getWeeksInRange } from '@/store/app-store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -17,34 +15,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import {
   ChevronLeft,
   ChevronRight,
   Download,
   User,
   CalendarDays,
-  Settings,
-  Plus,
-  Trash2,
-  FolderPlus,
-  GripVertical,
   FolderOpen,
-  X,
-  ArrowRight,
-  MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/api';
@@ -93,13 +69,7 @@ export default function CompteRenduTab() {
   const setProfileDialogOpen = useAppStore((s) => s.setProfileDialogOpen);
   const queryClient = useQueryClient();
 
-  // State for management dialog
-  const [manageOpen, setManageOpen] = useState(false);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [newCatName, setNewCatName] = useState('');
-  const [newCatUnit, setNewCatUnit] = useState('minutes');
-  const [newCatPersonal, setNewCatPersonal] = useState(true);
-  const [assigningCat, setAssigningCat] = useState<Category | null>(null);
+
 
   // Fetch categories with groups
   const { data: catData } = useQuery<{
@@ -137,34 +107,7 @@ export default function CompteRenduTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['entries'] }),
   });
 
-  // Category mutations
-  const addCategory = useMutation({
-    mutationFn: (data: { type: 'category'; name: string; unit: string; isPersonal: boolean; groupId?: string }) =>
-      authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewCatName(''); },
-  });
 
-  const deleteCategory = useMutation({
-    mutationFn: (id: string) => authFetch(`/api/categories?type=category&id=${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
-  });
-
-  const addGroup = useMutation({
-    mutationFn: (name: string) =>
-      authFetch('/api/categories', { method: 'POST', body: JSON.stringify({ type: 'group', name }) }).then((r) => r.json()),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewGroupName(''); toast.success('Groupe créé'); },
-  });
-
-  const deleteGroup = useMutation({
-    mutationFn: (id: string) => authFetch(`/api/categories?type=group&id=${id}`, { method: 'DELETE' }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Groupe supprimé'); },
-  });
-
-  const assignToGroup = useMutation({
-    mutationFn: (data: { type: 'assign'; categoryId: string; groupId: string | null }) =>
-      authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setAssigningCat(null); toast.success('Activité déplacée'); },
-  });
 
   // Calculate columns
   const totalDays = differenceInCalendarDays(period.endDate, period.startDate) + 1;
@@ -270,9 +213,6 @@ export default function CompteRenduTab() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setManageOpen(true)}>
-            <Settings className="h-4 w-4" />
-          </Button>
           <Button variant="ghost" size="icon" onClick={() => setProfileDialogOpen(true)}>
             <User className="h-4 w-4" />
           </Button>
@@ -430,141 +370,6 @@ export default function CompteRenduTab() {
         </CardContent>
       </Card>
 
-      {/* Management Dialog */}
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5 text-[var(--theme-primary)]" />
-              Gérer les activités
-            </DialogTitle>
-            <DialogDescription>
-              Créez des groupes, ajoutez/supprimez des activités et assignez-les aux groupes.
-              Seules les activités groupées apparaîtront sur le PDF.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {/* Create group */}
-            <Card className="border-[var(--theme-primary)]">
-              <CardContent className="p-3 space-y-2">
-                <h4 className="text-xs font-semibold text-gray-700">Créer un groupe</h4>
-                <div className="flex gap-2">
-                  <Input placeholder="Nom du groupe" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="text-sm flex-1" />
-                  <Button onClick={() => { if (newGroupName.trim()) addGroup.mutate(newGroupName); }} disabled={!newGroupName.trim() || addGroup.isPending} size="sm" className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs">
-                    <FolderPlus className="h-3 w-3 mr-1" /> Créer
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Existing groups */}
-            {groups.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-gray-700">Groupes existants</h4>
-                {groups.map((group) => (
-                  <Card key={group.id} className="border-l-4 border-l-[var(--theme-primary)]">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-[var(--theme-primary)]" />
-                          <span className="text-sm font-semibold">{group.name}</span>
-                          <span className="text-[10px] text-gray-400">({group.categories.length} activités)</span>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => deleteGroup.mutate(group.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {group.categories.map((cat) => (
-                          <span key={cat.id} className="inline-flex items-center gap-1 text-[10px] bg-[var(--theme-primary-light)] text-[var(--theme-primary-hover)] px-2 py-0.5 rounded-full">
-                            {cat.name}
-                            <button onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })} className="hover:text-red-500">
-                              <X className="h-2.5 w-2.5" />
-                            </button>
-                          </span>
-                        ))}
-                        {group.categories.length === 0 && (
-                          <span className="text-[10px] text-gray-400 italic">Aucune activité assignée</span>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {/* Add new category */}
-            <Card className="border-gray-200">
-              <CardContent className="p-3 space-y-2">
-                <h4 className="text-xs font-semibold text-gray-700">Ajouter une activité</h4>
-                <div className="flex gap-2">
-                  <Input placeholder="Nom de l'activité" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="text-sm flex-1" />
-                  <Select value={newCatUnit} onValueChange={setNewCatUnit}>
-                    <SelectTrigger className="w-24 h-9 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="minutes">Minutes</SelectItem>
-                      <SelectItem value="count">Compté</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-gray-500 flex items-center gap-1">
-                    <input type="checkbox" checked={newCatPersonal} onChange={(e) => setNewCatPersonal(e.target.checked)} className="rounded" />
-                    Personnel (compté dans le total)
-                  </label>
-                </div>
-                <Button onClick={() => { if (newCatName.trim()) addCategory.mutate({ type: 'category', name: newCatName, unit: newCatUnit, isPersonal: newCatPersonal }); }} disabled={!newCatName.trim()} size="sm" className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs">
-                  <Plus className="h-3 w-3 mr-1" /> Ajouter
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* All categories with assign/delete */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-gray-700">Toutes les activités</h4>
-              {categories.map((cat) => (
-                <div key={cat.id} className="flex items-center justify-between p-2 rounded-lg border border-gray-100 bg-white hover:bg-gray-50">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{cat.name}</p>
-                    <p className="text-[10px] text-gray-400">
-                      {cat.unit === 'minutes' ? 'min' : 'Part.'}
-                      {cat.isPersonal ? ' • Personnel' : ''}
-                      {cat.group ? ` • 📁 ${cat.group.name}` : ' • Non groupé'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 text-gray-400">
-                          <ArrowRight className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {groups.map((g) => (
-                          <DropdownMenuItem key={g.id} onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: g.id })}>
-                            <FolderOpen className="h-3 w-3 mr-2" />
-                            {g.name}
-                            {cat.groupId === g.id && ' ✓'}
-                          </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })}>
-                          <X className="h-3 w-3 mr-2" />
-                          Retirer du groupe
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => { deleteCategory.mutate(cat.id); toast.success('Activité supprimée'); }}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

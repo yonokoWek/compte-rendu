@@ -43,6 +43,7 @@ export async function POST(request: Request) {
         name: user.name,
         verified: user.verified,
         themeColor: user.themeColor,
+        language: user.language,
       },
     });
   } catch (error) {

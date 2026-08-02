@@ -3,21 +3,23 @@
 import React from 'react';
 import { FileText, BookOpen, Wallet, CheckSquare, History } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
+import { useT } from '@/lib/use-t';
 import { cn } from '@/lib/utils';
 import { getPreset, applyThemeCSSVariables } from '@/lib/themes';
 
 const tabs = [
-  { id: 'rapport', label: 'Rapport', icon: FileText },
-  { id: 'lecture', label: 'Lecture', icon: BookOpen },
-  { id: 'finances', label: 'Finances', icon: Wallet },
-  { id: 'activites', label: 'Activités', icon: CheckSquare },
-  { id: 'historique', label: 'Historique', icon: History },
+  { id: 'rapport', labelKey: 'tab.rapport', icon: FileText },
+  { id: 'lecture', labelKey: 'tab.lecture', icon: BookOpen },
+  { id: 'finances', labelKey: 'tab.finances', icon: Wallet },
+  { id: 'activites', labelKey: 'tab.activites', icon: CheckSquare },
+  { id: 'historique', labelKey: 'tab.historique', icon: History },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const themeColor = useAppStore((s) => s.themeColor);
+  const t = useT();
 
   return (
     <div
@@ -47,7 +49,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <Icon className={cn('h-5 w-5 mb-0.5', isActive && 'stroke-[2.5px]')} />
-                <span className={cn(isActive && 'font-semibold')}>{tab.label}</span>
+                <span className={cn(isActive && 'font-semibold')}>{t(tab.labelKey)}</span>
                 {isActive && (
                   <div className="w-1 h-1 rounded-full bg-[var(--theme-primary)] mt-0.5" />
                 )}

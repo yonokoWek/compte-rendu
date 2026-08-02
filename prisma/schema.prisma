@@ -17,6 +17,7 @@ model User {
   verificationCode String           @default("")
   codeExpiresAt    DateTime?
   themeColor       String           @default("orange")
+  language         String           @default("fr")
   profile          UserProfile?
   sessions         Session[]
   groups           ActivityGroup[]

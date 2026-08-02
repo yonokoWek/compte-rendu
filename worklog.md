@@ -171,3 +171,77 @@ Stage Summary:
 - All API routes protected with Bearer token authentication
 - Multi-user data isolation active on all routes
 - Key files: src/app/page.tsx (rewritten), src/lib/auth.ts (updated), src/lib/api.ts (new), src/app/api/auth/verify/route.ts (fixed), src/app/api/auth/login/route.ts (updated), src/components/auth-screen.tsx (updated)
+
+---
+Task ID: 1
+Agent: Main
+Task: Move ALL activity management from CompteRenduTab into ActivitiesTab
+
+Work Log:
+- Read CompteRenduTab (571 lines) and ActivitiesTab (243 lines) fully
+- Identified all management code to extract from CompteRenduTab:
+  - 5 state variables: manageOpen, newGroupName, newCatName, newCatUnit, newCatPersonal, assigningCat
+  - 5 mutations: addGroup, deleteGroup, addCategory, deleteCategory, assignToGroup
+  - Full Management Dialog JSX (lines 433-567)
+  - Unused imports: Dialog, DropdownMenu, Settings, Plus, Trash2, FolderPlus, GripVertical, X, ArrowRight, MoreVertical
+- Rewrote ActivitiesTab with Tabs component (2 sub-tabs):
+  - Sub-tab 1 "Activités de rapport": All management UI rendered inline (not dialog)
+    - Groupes section: create new group + list existing groups with category badges and remove-from-group buttons
+    - Ajouter une activité section: name input, unit select, personal checkbox, add button
+    - Liste des activités section: each category with name/unit/personal/group info, dropdown to assign to group, delete button
+    - Added categories/groups queries (same as CompteRenduTab)
+    - Added all 5 mutations (addGroup, deleteGroup, addCategory, deleteCategory, assignToGroup)
+  - Sub-tab 2 "Suivi quotidien": Existing CustomActivity checkoff functionality preserved exactly
+- Cleaned up CompteRenduTab:
+  - Removed Settings button from header
+  - Removed all 5 management state variables
+  - Removed all 5 management mutations
+  - Removed entire Management Dialog JSX
+  - Removed unused imports: Dialog*, DropdownMenu*, Settings, Plus, Trash2, FolderPlus, GripVertical, X, ArrowRight, MoreVertical, Input, fr
+  - Kept: report table, period navigation, PDF export, categories/groups/entries/profile queries, saveEntry mutation
+- Ran lint: clean, zero errors
+
+Stage Summary:
+- All activity management moved from CompteRenduTab to ActivitiesTab's "Activités de rapport" sub-tab
+- ActivitiesTab now has a tabbed interface: "Activités de rapport" (management) + "Suivi quotidien" (daily checkoff)
+- CompteRenduTab is now focused solely on report table view, period navigation, and PDF export
+- No functionality lost; all management operations (group CRUD, category CRUD, assign/remove from group) work identically
+- Lint clean, zero errors
+- Key files: src/components/activities-tab.tsx (rewritten), src/components/compte-rendu-tab.tsx (cleaned)
+
+---
+Task ID: 3-6
+Agent: Main
+Task: Add language persistence, language selector, and i18n translations to UI components
+
+Work Log:
+- TASK 1: Added language support to backend
+  - Updated AuthUser interface in src/lib/auth.ts: added `language: string` field
+  - Updated getSession select to include `language: true`
+  - Updated PUT /api/auth/theme to handle both `themeColor` and `language` fields (dynamic data object)
+  - Updated /api/auth/verify to return `language` in user object
+  - Updated /api/auth/login to return `language` in user object
+  - /api/auth/session already returns full auth.user (which now includes language)
+  - Updated src/app/page.tsx: added setLanguage to store, called on both session fetch (mount) and handleAuthSuccess
+- TASK 2: Added language selector to profile dialog
+  - Imported LANGUAGES from @/lib/i18n, useT from @/lib/use-t, useAppStore, authFetch
+  - Imported Select/SelectContent/SelectItem/SelectTrigger/SelectValue from shadcn/ui
+  - Added Globe icon from lucide-react
+  - Added language section after theme picker with Separator, using Select component
+  - Shows flag emoji + language name for each option
+  - On change: updates store immediately, then persists to /api/auth/theme with { language: newLang }
+- TASK 3: Applied i18n translations to 4 components
+  - app-layout.tsx: replaced hardcoded tab labels with t(tab.labelKey) using useT() hook
+  - page.tsx: replaced 'Compte Rendu' → t('app.title'), 'Activités Spirituelles' → t('app.subtitle'), 'Déconnexion' → t('common.logout')
+  - auth-screen.tsx: replaced ~20 hardcoded French strings with translation keys (auth.createAccount, auth.login, auth.sendCode, auth.verify, auth.finishSignup, auth.fullName, auth.pin, auth.confirmPin, auth.phoneNumber, auth.email, auth.continue, auth.noAccount, auth.alreadyHaveAccount, auth.sandboxHint, auth.pinMin, auth.pinMismatch, auth.enterPhone, auth.enterEmail, auth.enterCode, auth.setPin, auth.enterName, auth.enterPin, auth.account, auth.createAccountBtn, common.back)
+  - profile-dialog.tsx: replaced Mon Profil, editDesc, firstName, lastName, assembly, assemblyPlaceholder, mentor, mentorPlaceholder, save, saved, themeColor with t() calls
+  - Error toasts kept in French as instructed
+- Ran lint: clean, zero errors
+
+Stage Summary:
+- Language preference now persisted to DB and restored on login/session check
+- Language selector in profile dialog with flag emoji display
+- All key UI components (app-layout, page, auth-screen, profile-dialog) now use i18n translations
+- Users can switch between French and English; preference saved to User.language column
+- Lint clean, zero errors
+- Key files: src/lib/auth.ts, src/app/api/auth/theme/route.ts, src/app/api/auth/verify/route.ts, src/app/api/auth/login/route.ts, src/app/page.tsx, src/components/profile-dialog.tsx, src/components/app-layout.tsx, src/components/auth-screen.tsx

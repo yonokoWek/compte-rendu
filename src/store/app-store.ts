@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, startOfMonth, endOfMonth, addMonths, subMonths, startOfYear, endOfYear, addYears, subYears, eachDayOfInterval, eachWeekOfInterval } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS } from 'date-fns/locale';
+import type { Lang } from '@/lib/i18n';
 
 export type PeriodType = 'week' | 'month' | 'year';
 
@@ -26,6 +27,8 @@ interface AppState {
   setProfileDialogOpen: (open: boolean) => void;
   themeColor: string;
   setThemeColor: (color: string) => void;
+  language: Lang;
+  setLanguage: (lang: Lang) => void;
   sessionToken: string | null;
   setSessionToken: (token: string | null) => void;
   isAuthenticated: boolean;
@@ -86,6 +89,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProfileDialogOpen: (open) => set({ profileDialogOpen: open }),
   themeColor: 'orange',
   setThemeColor: (color) => set({ themeColor: color }),
+  language: 'fr' as Lang,
+  setLanguage: (lang) => set({ language: lang }),
   sessionToken: null,
   isAuthenticated: false,
   setSessionToken: (token) => set({ sessionToken: token, isAuthenticated: token !== null }),

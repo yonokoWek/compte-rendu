@@ -12,6 +12,7 @@ import HistoriqueTab from '@/components/historique-tab';
 import ProfileDialog from '@/components/profile-dialog';
 import AuthScreen from '@/components/auth-screen';
 import { useAppStore } from '@/store/app-store';
+import { useT } from '@/lib/use-t';
 import { Loader2, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -32,8 +33,10 @@ function AppContent() {
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const setSessionToken = useAppStore((s) => s.setSessionToken);
   const setThemeColor = useAppStore((s) => s.setThemeColor);
+  const setLanguage = useAppStore((s) => s.setLanguage);
   const setProfileDialogOpen = useAppStore((s) => s.setProfileDialogOpen);
   const initializedRef = useRef(false);
+  const t = useT();
 
   // Check existing session on mount
   useEffect(() => {
@@ -61,13 +64,16 @@ function AppContent() {
           if (data.user.themeColor) {
             setThemeColor(data.user.themeColor);
           }
+          if (data.user.language) {
+            setLanguage(data.user.language);
+          }
         }
       })
       .catch(() => {
         localStorage.removeItem('cr_session_token');
       })
       .finally(finish);
-  }, [setSessionToken, setThemeColor]);
+  }, [setSessionToken, setThemeColor, setLanguage]);
 
   const handleAuthSuccess = useCallback(
     (token: string) => {
@@ -80,10 +86,13 @@ function AppContent() {
           if (data.user?.themeColor) {
             setThemeColor(data.user.themeColor);
           }
+          if (data.user?.language) {
+            setLanguage(data.user.language);
+          }
         })
         .catch(() => {});
     },
-    [setSessionToken, setThemeColor]
+    [setSessionToken, setThemeColor, setLanguage]
   );
 
   const handleLogout = useCallback(() => {
@@ -134,8 +143,8 @@ function AppContent() {
             </span>
           </button>
           <div>
-            <h1 className="text-sm font-bold text-gray-800">Compte Rendu</h1>
-            <p className="text-[10px] text-gray-500">Activités Spirituelles</p>
+            <h1 className="text-sm font-bold text-gray-800">{t('app.title')}</h1>
+            <p className="text-[10px] text-gray-500">{t('app.subtitle')}</p>
           </div>
         </div>
         <Button
@@ -145,7 +154,7 @@ function AppContent() {
           className="text-gray-500 hover:text-red-600 h-8 px-2"
         >
           <LogOut className="h-4 w-4 mr-1" />
-          <span className="text-xs">Déconnexion</span>
+          <span className="text-xs">{t('common.logout')}</span>
         </Button>
       </header>
 
