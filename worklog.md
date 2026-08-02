@@ -245,3 +245,38 @@ Stage Summary:
 - Users can switch between French and English; preference saved to User.language column
 - Lint clean, zero errors
 - Key files: src/lib/auth.ts, src/app/api/auth/theme/route.ts, src/app/api/auth/verify/route.ts, src/app/api/auth/login/route.ts, src/app/page.tsx, src/components/profile-dialog.tsx, src/components/app-layout.tsx, src/components/auth-screen.tsx
+---
+Task ID: 7
+Agent: Main
+Task: Create deployment/export solution with Docker, install scripts, and distributable zip
+
+Work Log:
+- Analyzed project: Next.js 16 standalone output, SQLite/Prisma, Playwright/Chromium for PDF, Bun runtime
+- Created .dockerignore: excludes node_modules, .next, skills, tool-results, uploads, screenshots, test files
+- Created .env.example: DATABASE_URL, PORT, APP_NAME templates with comments in French
+- Created Dockerfile (multi-stage):
+  - Stage 1 (builder): oven/bun:1-debian → install build deps → bun install → prisma generate → next build
+  - Stage 2 (runner): debian:bookworm-slim → chromium + fonts + bun runtime → copy standalone + prisma client + schema + entrypoint
+  - Non-root user (appuser), health check, PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH for system Chromium
+- Created docker-compose.yml: single service with 2 volumes (data + uploads), port 3000, restart policy
+- Created docker-entrypoint.sh: auto-initializes SQLite DB on first run via prisma db push
+- Created install.sh: full bare-metal install script for Ubuntu/Debian VPS
+  - Checks root, detects OS, installs Chromium + fonts + Bun
+  - Copies project, runs bun install, prisma db push, next build
+  - Creates systemd service (compte-rendu) with security settings
+  - Shows status and useful commands at end
+- Created update.sh: incremental update script (deps → prisma → build → restart)
+- Created Caddyfile.production.example: production HTTPS config with security headers
+- Created export.sh: creates clean .zip archive (excludes skills, uploads, screenshots, db, node_modules)
+- Updated package.json: renamed to compte-rendu v1.0.0, added setup/export/docker:*/update scripts
+- Verified z-ai-web-dev-sdk is publicly installable (won't block user installs)
+- Generated clean export zip: 244KB (was 41MB before excluding skills dir)
+
+Stage Summary:
+- Complete deployment solution with 3 installation methods:
+  1. Docker (recommended): docker compose up -d
+  2. Bare-metal: sudo ./install.sh (Ubuntu/Debian VPS)
+  3. Manual: bun run setup → bun run start
+- Export zip: 244KB clean archive with all source code and deployment configs
+- New files: Dockerfile, docker-compose.yml, docker-entrypoint.sh, install.sh, export.sh, update.sh, .env.example, .dockerignore, Caddyfile.production.example
+- Updated: package.json (renamed, v1.0.0, deployment scripts)

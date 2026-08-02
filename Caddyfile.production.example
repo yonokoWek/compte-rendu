@@ -1,0 +1,32 @@
+# ==============================================
+# Compte Rendu - Configuration Caddy pour production
+# Caddy gère automatiquement le HTTPS avec Let's Encrypt
+#
+# Instructions:
+#   1. Remplacez votre-domaine.com par votre vrai domaine
+#   2. Assurez-vous que le DNS pointe vers votre serveur
+#   3. Copiez ce fichier: sudo cp Caddyfile.production.example /etc/caddy/Caddyfile
+#   4. Rechargez: sudo systemctl reload caddy
+# ==============================================
+
+votre-domaine.com {
+    # Reverse proxy vers l'application
+    reverse_proxy localhost:3000
+
+    # Logs
+    log {
+        output file /var/log/caddy/compte-rendu.log
+        format console
+    }
+
+    # Sécurité
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header X-XSS-Protection "1; mode=block"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+}
+
+# Pour un sous-domaine:
+# compte-rendu.votre-domaine.com {
+#     reverse_proxy localhost:3000
+# }

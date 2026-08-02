@@ -1,0 +1,30 @@
+# ==============================================
+# Compte Rendu - Docker Compose
+# Démarrez l'application avec: docker compose up -d
+# Arrêtez avec:            docker compose down
+# ==============================================
+
+services:
+  app:
+    build: .
+    container_name: compte-rendu
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist the SQLite database
+      - cr-data:/app/data
+      # Persist uploaded PDFs and images
+      - cr-uploads:/app/public/upload
+    environment:
+      - DATABASE_URL=file:/app/data/compte-rendu.db
+      - NODE_ENV=production
+      - PORT=3000
+    mem_limit: 512m
+    cpus: 1.0
+
+volumes:
+  cr-data:
+    name: compte-rendu-data
+  cr-uploads:
+    name: compte-rendu-uploads

@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+
+# Database (will be created at runtime)
+db/*.db
+db/*.db-journal
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Debug/Dev files
+dev.log
+server.log
+keep_alive.sh
+generate.py
+
+# Screenshots & test files
+screenshot*.png
+test.png
+verify*.png
+final-*.png
+test.txt
+
+# Uploads
+upload/
+download/
+
+# Tool results
+tool-results/
+
+# Examples & tests
+examples/
+tests/
+skills/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Bun debug
+bun.lockb
