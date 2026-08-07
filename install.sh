@@ -1,134 +1,151 @@
 #!/bin/bash
-# ==============================================
-# Compte Rendu - Script d'installation Linux
-# Pour VPS (Ubuntu/Debian) sans Docker
-# 
-# Usage: chmod +x install.sh && ./install.sh
-# ==============================================
+# ==============================================================
+#  Compte Rendu - Script d'installation automatique (1 commande)
+#  Pour VPS Ubuntu/Debian — installe tout : app + Caddy + HTTPS
+#
+#  Utilisation sur votre serveur :
+#    curl -sL https://votre-lien.zip -o cr.zip && unzip cr.zip -d compte-rendu && cd compte-rendu && chmod +x install.sh && sudo ./install.sh
+#
+#  Ou avec un domaine :
+#    sudo ./install.sh votre-domaine.com
+# ==============================================================
+set -euo pipefail
 
-set -e
-
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 APP_DIR="/opt/compte-rendu"
 SERVICE_NAME="compte-rendu"
+DOMAIN="${1:-}"
 
-echo -e "${BLUE}"
-echo "╔═══════════════════════════════════════════════╗"
-echo "║     Compte Rendu - Installation              ║"
-echo "║     Rapport d'Activités Spirituelles         ║"
-echo "╚═══════════════════════════════════════════════╝"
+echo ""
+echo -e "${CYAN}${BOLD}"
+echo "  ╔══════════════════════════════════════════════════╗"
+echo "  ║      📖 Compte Rendu — Installation             ║"
+echo "  ║      Rapport d'Activités Spirituelles           ║"
+echo "  ╚══════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# ---- Check root ----
+# ---- Vérification root ----
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}Ce script doit être exécuté en tant que root (sudo).${NC}"
-    echo "Utilisez: sudo ./install.sh"
+    echo -e "${RED}❌ Ce script doit être exécuté en tant que root (sudo).${NC}"
+    echo "   Utilisez : sudo ./install.sh${NC}"
+    echo "   Ou : sudo ./install.sh votre-domaine.com"
     exit 1
 fi
 
-# ---- Detect OS ----
+# ---- Détection OS ----
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS=$ID
     VERSION=$VERSION_ID
 else
-    echo -e "${RED}OS non reconnu. Utilisez Ubuntu 20.04+ ou Debian 11+.${NC}"
+    echo -e "${RED}❌ OS non reconnu. Utilisez Ubuntu 20.04+ ou Debian 11+.${NC}"
     exit 1
 fi
+echo -e "${GREEN}✅ OS détecté : $OS $VERSION${NC}"
 
-echo -e "${GREEN}✓ OS détecté: $OS $VERSION${NC}"
-
-# ---- Step 1: Update system ----
-echo -e "${YELLOW}[1/7] Mise à jour du système...${NC}"
+# ---- Étape 1 : Mise à jour système ----
+echo -e "${YELLOW}[1/8] Mise à jour du système...${NC}"
 apt-get update -qq
 apt-get upgrade -y -qq > /dev/null 2>&1
+echo -e "${GREEN}✅ Système à jour${NC}"
 
-# ---- Step 2: Install system dependencies ----
-echo -e "${YELLOW}[2/7] Installation des dépendances système...${NC}"
+# ---- Étape 2 : Dépendances système ----
+echo -e "${YELLOW}[2/8] Installation de Chromium, polices et Caddy...${NC}"
 apt-get install -y -qq \
-    curl \
-    unzip \
+    curl unzip wget software-properties-common \
+    apt-transport-https ca-certificates gnupg \
     chromium \
-    fonts-noto \
-    fonts-noto-cjk \
-    fonts-liberation \
-    ca-certificates \
+    fonts-noto fonts-noto-cjk fonts-liberation \
     > /dev/null 2>&1
+echo -e "${GREEN}✅ Chromium et polices installés${NC}"
 
-echo -e "${GREEN}✓ Chromium et polices installés${NC}"
-
-# ---- Step 3: Install Bun ----
-echo -e "${YELLOW}[3/7] Installation de Bun...${NC}"
-if command -v bun &> /dev/null; then
-    echo -e "${GREEN}✓ Bun déjà installé: $(bun --version)${NC}"
+# ---- Étape 3 : Installer Caddy (reverse proxy + HTTPS auto) ----
+echo -e "${YELLOW}[3/8] Installation de Caddy (HTTPS automatique)...${NC}"
+if command -v caddy &> /dev/null; then
+    echo -e "${GREEN}✅ Caddy déjà installé : $(caddy version | head -1)${NC}"
 else
-    curl -fsSL https://bun.sh/install | bash
-    export BUN_INSTALL="$HOME/.bun"
-    export PATH="$BUN_INSTALL/bin:$PATH"
-    # Make bun available system-wide
-    ln -sf $BUN_INSTALL/bin/bun /usr/local/bin/bun
-    echo -e "${GREEN}✓ Bun installé: $(bun --version)${NC}"
+    # Ajouter le dépôt Caddy officiel
+    apt-get install -y debian-keyring debian-archive-keyring apt-transport-https -qq > /dev/null 2>&1
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list > /dev/null
+    apt-get update -qq
+    apt-get install -y caddy -qq > /dev/null 2>&1
+    echo -e "${GREEN}✅ Caddy installé : $(caddy version | head -1)${NC}"
 fi
 
-# ---- Step 4: Copy project files ----
-echo -e "${YELLOW}[4/7] Installation de l'application...${NC}"
+# ---- Étape 4 : Installer Bun ----
+echo -e "${YELLOW}[4/8] Installation de Bun...${NC}"
+if command -v bun &> /dev/null; then
+    echo -e "${GREEN}✅ Bun déjà installé : $(bun --version)${NC}"
+else
+    curl -fsSL https://bun.sh/install | bash > /dev/null 2>&1
+    BUN_INSTALL="$HOME/.bun"
+    export PATH="$BUN_INSTALL/bin:$PATH"
+    ln -sf "$BUN_INSTALL/bin/bun" /usr/local/bin/bun
+    echo -e "${GREEN}✅ Bun installé : $(bun --version)${NC}"
+fi
 
-# Get the directory where this script is located
+# ---- Étape 5 : Copier les fichiers ----
+echo -e "${YELLOW}[5/8] Installation de l'application...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -d "$APP_DIR" ]; then
-    echo -e "${YELLOW}  $APP_DIR existe déjà, mise à jour...${NC}"
+    echo -e "${YELLOW}  📁 $APP_DIR existe, mise à jour...${NC}"
+    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
     rm -rf "$APP_DIR"
 fi
 
 cp -r "$SCRIPT_DIR" "$APP_DIR"
-rm -rf "$APP_DIR"/.git "$APP_DIR"/tool-results "$APP_DIR"/upload "$APP_DIR"/screenshot*.png \
-    "$APP_DIR"/test.png "$APP_DIR"/verify*.png "$APP_DIR"/final-*.png "$APP_DIR"/dev.log \
-    "$APP_DIR"/server.log "$APP_DIR"/keep_alive.sh "$APP_DIR"/generate.py "$APP_DIR"/tests \
-    "$APP_DIR"/examples "$APP_DIR"/download
 
-# Remove database files (will be created fresh)
-rm -f "$APP_DIR"/db/*.db "$APP_DIR"/db/*.db-journal"
-
-echo -e "${GREEN}✓ Fichiers copiés dans $APP_DIR${NC}"
-
-# ---- Step 5: Install Node dependencies ----
-echo -e "${YELLOW}[5/7] Installation des dépendances Node.js...${NC}"
+# Nettoyer les fichiers inutiles
 cd "$APP_DIR"
+rm -rf \
+    .git tool-results upload download examples tests mini-services \
+    screenshot*.png test.png verify*.png final-*.png \
+    dev.log server.log keep_alive.sh generate.py worklog.md \
+    *.zip auth-state.json verify-pwa.png
+
+# Supprimer la base de données locale (sera recréée)
+rm -f db/*.db db/*.db-journal
+mkdir -p db upload public/upload
+
+echo -e "${GREEN}✅ Fichiers copiés dans $APP_DIR${NC}"
+
+# ---- Étape 6 : Installer dépendances et compiler ----
+echo -e "${YELLOW}[6/8] Installation des dépendances et compilation...${NC}"
+cd "$APP_DIR"
+
+# Créer le .env
+cp .env.example .env
+sed -i "s|file:./db/compte-rendu.db|file:$APP_DIR/db/compte-rendu.db|g" .env
+
+# Installer les dépendances
 bun install --production 2>&1 | tail -1
-echo -e "${GREEN}✓ Dépendances installées${NC}"
 
-# ---- Step 6: Setup database ----
-echo -e "${YELLOW}[6/7] Configuration de la base de données...${NC}"
-mkdir -p "$APP_DIR/db"
+# Générer Prisma client
+bunx prisma generate 2>&1 | tail -1
 
-# Create .env if not exists
-if [ ! -f "$APP_DIR/.env" ]; then
-    cp "$APP_DIR/.env.example" "$APP_DIR/.env"
-    # Update DATABASE_URL for the install location
-    sed -i "s|file:./db/custom.db|file:$APP_DIR/db/compte-rendu.db|g" "$APP_DIR/.env"
-fi
-
-# Push schema to create database
+# Créer la base de données
 bunx prisma db push --accept-data-loss 2>&1 | tail -1
-echo -e "${GREEN}✓ Base de données créée${NC}"
+echo -e "${GREEN}✅ Base de données créée${NC}"
 
-# Build the application
-# Skip TypeScript errors (same as dev config)
-bun run build 2>&1 | tail -5
+# Compiler l'application
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+bun run build 2>&1 | tail -3
+echo -e "${GREEN}✅ Application compilée${NC}"
 
-echo -e "${GREEN}✓ Application compilée${NC}"
+# ---- Étape 7 : Service systemd ----
+echo -e "${YELLOW}[7/8] Configuration du service...${NC}"
 
-# ---- Step 7: Create systemd service ----
-echo -e "${YELLOW}[7/7] Configuration du service systemd...${NC}"
-
-cat > /etc/systemd/system/${SERVICE_NAME}.service << EOF
+cat > /etc/systemd/system/${SERVICE_NAME}.service << SYSTEMD_EOF
 [Unit]
 Description=Compte Rendu - Application Spirituelle
 After=network.target
@@ -143,56 +160,119 @@ Environment=DATABASE_URL=file:$APP_DIR/db/compte-rendu.db
 Environment=PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 Environment=PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 Environment=PORT=3000
-ExecStart=/usr/local/bin/bun run start
+ExecStart=/usr/local/bin/bun .next/standalone/server.js
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
-# Security
+# Sécurité
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=$APP_DIR/db $APP_DIR/upload /tmp
+ReadWritePaths=$APP_DIR/db $APP_DIR/upload $APP_DIR/public/upload /tmp
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SYSTEMD_EOF
 
-# Ensure www-data owns the app files
+# Permissions
 chown -R www-data:www-data "$APP_DIR"
 chmod -R 755 "$APP_DIR"
-mkdir -p "$APP_DIR/db" "$APP_DIR/upload"
-chown -R www-data:www-data "$APP_DIR/db" "$APP_DIR/upload"
+chown -R www-data:www-data "$APP_DIR/db" "$APP_DIR/upload" "$APP_DIR/public/upload"
 
-# Reload and enable service
 systemctl daemon-reload
-systemctl enable ${SERVICE_NAME}
-systemctl start ${SERVICE_NAME}
-
+systemctl enable "$SERVICE_NAME"
+systemctl start "$SERVICE_NAME"
 sleep 3
 
-# Check status
-if systemctl is-active --quiet ${SERVICE_NAME}; then
-    echo -e "${GREEN}✓ Service démarré avec succès${NC}"
+if systemctl is-active --quiet "$SERVICE_NAME"; then
+    echo -e "${GREEN}✅ Service démarré avec succès${NC}"
 else
-    echo -e "${RED}✗ Le service n'a pas pu démarrer. Vérifiez avec: journalctl -u ${SERVICE_NAME}${NC}"
+    echo -e "${RED}❌ Le service n'a pas pu démarrer.${NC}"
+    echo "   Vérifiez : sudo journalctl -u $SERVICE_NAME --no-pager -n 20"
     exit 1
 fi
 
-# ---- Done ----
+# ---- Étape 8 : Configuration Caddy + HTTPS ----
+echo -e "${YELLOW}[8/8] Configuration du reverse proxy...${NC}"
+
+SERVER_IP=$(hostname -I | awk '{print $1}')
+
+if [ -n "$DOMAIN" ]; then
+    # ---- Avec domaine : HTTPS automatique ----
+    cat > /etc/caddy/Caddyfile << CADDY_EOF
+$DOMAIN {
+    reverse_proxy localhost:3000
+
+    # Sécurité headers
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "SAMEORIGIN"
+    header -Server
+
+    # Logging
+    log {
+        output file /var/log/caddy/compte-rendu.log
+        format console
+    }
+}
+CADDY_EOF
+
+    systemctl reload caddy 2>/dev/null || systemctl restart caddy
+    echo -e "${GREEN}✅ Caddy configuré pour $DOMAIN (HTTPS auto)${NC}"
+    echo ""
+    echo -e "${CYAN}${BOLD}  🌐 Votre application sera disponible sur :${NC}"
+    echo -e "     ${GREEN}https://$DOMAIN${NC}"
+    echo ""
+    echo -e "${YELLOW}  ⚠️  Assurez-vous que votre DNS pointe vers $SERVER_IP${NC}"
+    echo "     Type A : $DOMAIN → $SERVER_IP"
+    echo "     (Laissez 5-30 min pour la propagation DNS)"
+else
+    # ---- Sans domaine : HTTP simple ----
+    cat > /etc/caddy/Caddyfile << CADDY_EOF
+:80 {
+    reverse_proxy localhost:3000
+
+    header X-Content-Type-Options "nosniff"
+    header -Server
+
+    log {
+        output file /var/log/caddy/compte-rendu.log
+        format console
+    }
+}
+CADDY_EOF
+
+    systemctl reload caddy 2>/dev/null || systemctl restart caddy
+    echo -e "${GREEN}✅ Caddy configuré en mode HTTP${NC}"
+    echo ""
+    echo -e "${CYAN}${BOLD}  🌐 Votre application est disponible sur :${NC}"
+    echo -e "     ${GREEN}http://$SERVER_IP${NC}"
+    echo ""
+    echo -e "${YELLOW}  💡 Pour ajouter un domaine + HTTPS gratuit plus tard :${NC}"
+    echo "     1. Achetez un domaine (ex: Namecheap, OVH — ~5$/an)"
+    echo "     2. Pointez le DNS (Type A) vers $SERVER_IP"
+    echo "     3. Relancez : sudo ./update.sh votre-domaine.com"
+fi
+
+# ---- Résumé final ----
 echo ""
-echo -e "${BLUE}"
-echo "╔═══════════════════════════════════════════════╗"
-echo "║     ✅ Installation terminée !               ║"
-echo "╚═══════════════════════════════════════════════╝"
+echo -e "${CYAN}${BOLD}"
+echo "  ╔══════════════════════════════════════════════════╗"
+echo "  ║      ✅ Installation terminée avec succès !     ║"
+echo "  ╚══════════════════════════════════════════════════╝"
 echo -e "${NC}"
-echo -e "${GREEN}Application disponible sur: ${BLUE}http://$(hostname -I | awk '{print $1}'):3000${NC}"
+echo -e "${BOLD}📦 Commandes utiles :${NC}"
 echo ""
-echo "Commandes utiles:"
-echo "  Voir le statut:  sudo systemctl status $SERVICE_NAME"
-echo "  Voir les logs:   sudo journalctl -u $SERVICE_NAME -f"
-echo "  Redémarrer:      sudo systemctl restart $SERVICE_NAME"
-echo "  Arrêter:         sudo systemctl stop $SERVICE_NAME"
-echo "  Mettre à jour:   cd $APP_DIR && git pull && bun install && bun run build && sudo systemctl restart $SERVICE_NAME"
+echo "  Voir le statut  :  sudo systemctl status $SERVICE_NAME"
+echo "  Voir les logs    :  sudo journalctl -u $SERVICE_NAME -f"
+echo "  Redémarrer       :  sudo systemctl restart $SERVICE_NAME"
+echo "  Arrêter          :  sudo systemctl stop $SERVICE_NAME"
+echo "  Logs Caddy       :  sudo journalctl -u caddy -f"
 echo ""
-echo -e "${YELLOW}Astuce: Pour un accès depuis internet, configurez un nom de domaine"
-echo "avec Caddy ou Nginx comme reverse proxy sur le port 80/443.${NC}"
+echo -e "${BOLD}📱 Sur votre téléphone :${NC}"
+echo "  Ouvrez l'adresse dans Chrome → Menu → « Installer l'application »"
+echo ""
+echo -e "${BOLD}🔒 HTTPS gratuit :${NC}"
+echo "  Caddy génère automatiquement un certificat SSL Let's Encrypt."
+echo "  Il suffit d'ajouter un domaine pointant vers ce serveur."
 echo ""

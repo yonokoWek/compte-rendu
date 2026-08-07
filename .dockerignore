@@ -7,7 +7,7 @@ node_modules/
 .next/
 out/
 
-# Database (will be created at runtime)
+# Database
 db/*.db
 db/*.db-journal
 
@@ -16,29 +16,30 @@ db/*.db-journal
 .env.local
 .env.production
 
-# Debug/Dev files
+# Debug/Dev
 dev.log
 server.log
 keep_alive.sh
 generate.py
+worklog.md
 
-# Screenshots & test files
+# Screenshots & temp images
 screenshot*.png
 test.png
 verify*.png
 final-*.png
-test.txt
+*.zip
+auth-state.json
+tool-results/
 
-# Uploads
+# Uploads (user data)
 upload/
 download/
 
-# Tool results
-tool-results/
-
-# Examples & tests
+# Development
 examples/
 tests/
+mini-services/
 skills/
 
 # IDE
@@ -53,5 +54,5 @@ Thumbs.db
 .git/
 .gitignore
 
-# Bun debug
+# Bun
 bun.lockb

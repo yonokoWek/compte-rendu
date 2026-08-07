@@ -384,3 +384,30 @@ Stage Summary:
 - Sync UI: offline banner, sync status bar, floating badge with pending count
 - Finances tab already had épargne/don support from previous session (4 categories: income, expense, epargne, don)
 - Key files: public/sw.js (new), public/manifest.json (new), public/icon-maskable.svg (new), src/lib/offline-sync.ts (new), src/components/sync-status.tsx (new), src/lib/auth.ts (persistent login), src/lib/api.ts (offline-aware), src/app/layout.tsx (PWA meta), src/app/page.tsx (SW reg + install prompt + sync), src/lib/i18n.ts (12 offline keys)
+---
+Task ID: 10
+Agent: Main
+Task: Create complete free deployment solution with automated install
+
+Work Log:
+- Rewrote /install.sh: complete automated 8-step installer
+  - System update, Chromium + fonts, Caddy (auto HTTPS), Bun runtime
+  - Copies project, installs deps, generates Prisma, builds Next.js
+  - Creates systemd service with security hardening
+  - Auto-configures Caddy with or without domain
+  - Accepts optional domain argument for automatic HTTPS via Let's Encrypt
+  - Shows IP address and URL after install
+- Created .env.example: DATABASE_URL, PORT, NODE_ENV, Playwright paths
+- Created /update-from-local.sh: incremental update script
+- Updated /export.sh: cleaner output, embedded deployment guide in terminal
+- Updated /.dockerignore: comprehensive exclusions
+- Generated deployment zip: compte-rendu.zip (264K)
+- Lint clean, dev server 200 OK
+
+Stage Summary:
+- One-command install: sudo ./install.sh [domain] handles everything
+- Caddy installed and configured automatically (HTTP or HTTPS)
+- HTTPS is free and automatic when a domain is provided (Let's Encrypt via Caddy)
+- 264K deployable zip with complete source + deployment scripts
+- Docker alternative also available (Dockerfile + docker-compose.yml)
+- Key files: install.sh (rewritten), export.sh (updated), update-from-local.sh (new), .env.example (new), .dockerignore (updated)
