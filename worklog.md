@@ -324,3 +324,63 @@ Stage Summary:
 - Trend detection compares first half vs second half of period
 - All features bilingual (FR/EN)
 - Key files: src/components/progression-tab.tsx (new), src/app/api/progression/route.ts (new), prisma/schema.prisma (duration added), src/components/lecture-tab.tsx (bible duration), src/components/app-layout.tsx (6 tabs), src/lib/i18n.ts (22 keys)
+---
+Task ID: 9
+Agent: Main
+Task: PWA installability, persistent login, offline data sync
+
+Work Log:
+- PWA SETUP:
+  - Created /public/manifest.json: name, icons (SVG), standalone display, orange theme, portrait orientation
+  - Created /public/icon-maskable.svg: custom orange gradient app icon with book+cross design
+  - Updated /src/app/layout.tsx: added manifest metadata, apple-web-app metadata, viewport config, mobile-web-app-capable meta tags
+- SERVICE WORKER:
+  - Created /public/sw.js with full caching strategy:
+    - Install: pre-caches static assets (/, manifest, icons)
+    - Activate: cleans old caches, claims clients
+    - Fetch handler: cache-first for static assets, stale-while-revalidate for API GET requests, network-first for other requests
+    - Offline mutation queuing: POST/DELETE requests stored in IndexedDB when offline
+    - Auto-replay: syncs queued requests when back online (via 'online' event + 'sync' event)
+    - Message handler: supports GET_QUEUE_COUNT and FORCE_SYNC from clients
+  - Fixed IDBRequest handling: wrapped store.getAll() and store.count() in proper Promises (IDBRequest is not directly awaitable)
+- OFFLINE SYNC SYSTEM:
+  - Created /src/lib/offline-sync.ts: useOfflineSync() hook + offlineAwareFetch() + queueMutation()
+    - Tracks online/offline status via navigator events
+    - Monitors service worker messages for sync status updates
+    - Provides pendingCount, isSyncing, lastSyncStatus, pendingEntries
+    - forceSync() and refreshCount() functions
+    - offlineAwareFetch(): when offline, queues POST/PUT/DELETE in IndexedDB, returns 202
+  - Updated /src/lib/api.ts: authFetch now uses offlineAwareFetch for offline mutation support
+  - Created /src/components/sync-status.tsx:
+    - SyncStatusBar: full-width banner (amber when offline, blue when syncing, green on success, red on error)
+    - SyncIndicator: floating bottom-right circle badge with pending count
+  - Added 12 FR/EN i18n keys for offline/sync messages
+- PERSISTENT LOGIN:
+  - Updated /src/lib/auth.ts: session expiry increased from 30 days to 365 days
+  - Added auto-extension: getSession() auto-extends session if within 30 days of expiration
+  - Updated /src/app/page.tsx:
+    - Service worker registration on mount (with periodic background sync support)
+    - Periodic session refresh (every 24h) to keep session alive
+    - Visibility change handler: refreshes session when tab becomes active
+    - Online event handler: invalidates queries when back online
+    - PWA install prompt handling: shows "Installer" button when beforeinstallprompt fires
+    - SyncStatusBar and SyncIndicator integrated into layout
+- VERIFICATION:
+  - All static assets accessible: sw.js (200), manifest.json (200), icon-maskable.svg (200)
+  - Service Worker registered and active at http://localhost:3000/
+  - PWA meta tags verified: manifest linked, theme-color #f97316, mobile-web-app-capable yes, apple-mobile-web-app-capable yes
+  - IndexedDB cr-offline-sync v1 created for offline queue
+  - Cache storage cr-v1 created for app shell caching
+  - Offline mutation queuing tested: POST to /api/finances returned 202 with queued:true while offline
+  - Entry stored in IndexedDB with correct method, URL, and body
+  - App loads fully while offline (cached HTML/CSS/JS served from service worker)
+  - "Installer" (PWA install) button visible in header
+  - Lint clean (zero errors)
+
+Stage Summary:
+- App is now installable as a PWA on mobile/desktop (manifest + service worker + meta tags)
+- Persistent login: sessions last 365 days, auto-extended when active, no forced re-login
+- Offline support: app shell cached by SW, API responses cached with stale-while-revalidate, mutations queued in IndexedDB when offline, auto-synced when back online
+- Sync UI: offline banner, sync status bar, floating badge with pending count
+- Finances tab already had épargne/don support from previous session (4 categories: income, expense, epargne, don)
+- Key files: public/sw.js (new), public/manifest.json (new), public/icon-maskable.svg (new), src/lib/offline-sync.ts (new), src/components/sync-status.tsx (new), src/lib/auth.ts (persistent login), src/lib/api.ts (offline-aware), src/app/layout.tsx (PWA meta), src/app/page.tsx (SW reg + install prompt + sync), src/lib/i18n.ts (12 offline keys)

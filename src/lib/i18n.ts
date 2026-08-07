@@ -200,6 +200,19 @@ export const translations: Record<Lang, Record<string, string>> = {
     'progression.dailyChart': 'Graphique quotidien',
     'progression.perActivity': 'Détail par activité',
     'progression.dailyDetail': 'Détail par jour',
+
+    // Offline & Sync
+    'offline.mode': 'Mode hors ligne — données sauvegardées localement',
+    'offline.syncing': 'Synchronisation...',
+    'offline.pending': 'élément(s) en attente',
+    'offline.syncNow': 'Synchroniser',
+    'offline.synced': 'synchronisé(s)',
+    'offline.failed': 'échoué(s)',
+    'offline.install': 'Installer',
+    'offline.offlineBadge': 'Hors ligne',
+    'offline.onlineBadge': 'Connecté',
+    'offline.dataSaved': 'Données sauvegardées localement',
+    'offline.willSync': 'Sera synchronisé à la reconnexion',
   },
   en: {
     // App
@@ -395,5 +408,18 @@ export const translations: Record<Lang, Record<string, string>> = {
     'progression.dailyChart': 'Daily Chart',
     'progression.perActivity': 'Per Activity Breakdown',
     'progression.dailyDetail': 'Daily Detail',
+
+    // Offline & Sync
+    'offline.mode': 'Offline mode — data saved locally',
+    'offline.syncing': 'Syncing...',
+    'offline.pending': 'pending item(s)',
+    'offline.syncNow': 'Sync now',
+    'offline.synced': 'synced',
+    'offline.failed': 'failed',
+    'offline.install': 'Install',
+    'offline.offlineBadge': 'Offline',
+    'offline.onlineBadge': 'Online',
+    'offline.dataSaved': 'Data saved locally',
+    'offline.willSync': 'Will sync when reconnected',
   },
 };

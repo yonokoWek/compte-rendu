@@ -14,6 +14,7 @@ export interface AuthUser {
 /**
  * Extract and validate session from Authorization header.
  * Returns the user object or null if not authenticated.
+ * Auto-extends session expiry if within 30 days of expiration.
  */
 export async function getSession(request: Request): Promise<AuthUser | null> {
   try {
@@ -32,6 +33,16 @@ export async function getSession(request: Request): Promise<AuthUser | null> {
     if (new Date() > session.expiresAt) {
       await db.session.delete({ where: { id: session.id } });
       return null;
+    }
+
+    // Auto-extend session if within 30 days of expiration (keep-alive)
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    if (session.expiresAt < thirtyDaysFromNow) {
+      await db.session.update({
+        where: { id: session.id },
+        data: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) }, // Extend to 1 year from now
+      });
     }
 
     return session.user;
@@ -84,11 +95,12 @@ export function generateToken(): string {
 
 /**
  * Create a session for a user, returns the session token.
+ * Session expires in 1 year (365 days) for persistent login.
  */
 export async function createSession(userId: string): Promise<string> {
   const token = generateToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+  expiresAt.setDate(expiresAt.getDate() + 365); // 365 days for persistent login
 
   await db.session.create({
     data: { token, userId, expiresAt },

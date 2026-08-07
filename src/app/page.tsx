@@ -11,10 +11,11 @@ import ActivitiesTab from '@/components/activities-tab';
 import HistoriqueTab from '@/components/historique-tab';
 import ProgressionTab from '@/components/progression-tab';
 import ProfileDialog from '@/components/profile-dialog';
+import SyncStatusBar, { SyncIndicator } from '@/components/sync-status';
 import AuthScreen from '@/components/auth-screen';
 import { useAppStore } from '@/store/app-store';
 import { useT } from '@/lib/use-t';
-import { Loader2, LogOut } from 'lucide-react';
+import { Loader2, LogOut, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const queryClient = new QueryClient({
@@ -28,8 +29,44 @@ const queryClient = new QueryClient({
 
 type AppStatus = 'loading' | 'auth' | 'unauth';
 
+// Register service worker
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        console.log('[SW] Registered:', reg.scope);
+
+        // Request periodic background sync if available
+        if ('sync' in (ServiceWorkerRegistration as unknown as Record<string, unknown>)) {
+          (reg as unknown as { sync: { register: (tag: string) => Promise<void> } }).sync
+            .register('cr-sync-queue')
+            .catch(() => {
+              // Periodic sync not supported, that's fine
+            });
+        }
+
+        // Listen for updates
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'activated') {
+                console.log('[SW] New version activated');
+              }
+            });
+          }
+        });
+      })
+      .catch((err) => {
+        console.warn('[SW] Registration failed:', err);
+      });
+  }
+}
+
 function AppContent() {
   const [status, setStatus] = useState<AppStatus>('loading');
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const activeTab = useAppStore((s) => s.activeTab);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const setSessionToken = useAppStore((s) => s.setSessionToken);
@@ -38,6 +75,21 @@ function AppContent() {
   const setProfileDialogOpen = useAppStore((s) => s.setProfileDialogOpen);
   const initializedRef = useRef(false);
   const t = useT();
+
+  // Register service worker on mount
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  // Listen for PWA install prompt
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   // Check existing session on mount
   useEffect(() => {
@@ -52,6 +104,7 @@ function AppContent() {
       return;
     }
 
+    // Try to validate session
     fetch('/api/auth/session', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -75,6 +128,54 @@ function AppContent() {
       })
       .finally(finish);
   }, [setSessionToken, setThemeColor, setLanguage]);
+
+  // Periodically refresh session to keep it alive (every 24h)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const refreshSession = () => {
+      const token = localStorage.getItem('cr_session_token');
+      if (!token) return;
+      fetch('/api/auth/session', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    };
+
+    // Refresh every 24 hours to keep session alive
+    const interval = setInterval(refreshSession, 24 * 60 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  // Handle visibility change - refresh session when tab becomes active
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const token = localStorage.getItem('cr_session_token');
+        if (!token) return;
+        fetch('/api/auth/session', {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isAuthenticated]);
+
+  // Handle online/offline - invalidate queries when back online
+  useEffect(() => {
+    const handleOnline = () => {
+      if (isAuthenticated) {
+        queryClient.invalidateQueries();
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [isAuthenticated]);
 
   const handleAuthSuccess = useCallback(
     (token: string) => {
@@ -110,6 +211,15 @@ function AppContent() {
     queryClient.clear();
   }, [setSessionToken, setThemeColor]);
 
+  const handleInstall = useCallback(async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice;
+    if (result.outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  }, [installPrompt]);
+
   // Show loading spinner while checking session
   if (status === 'loading') {
     return (
@@ -132,7 +242,10 @@ function AppContent() {
   // Show main app
   return (
     <AppLayout>
-      {/* Header with profile + logout */}
+      {/* Sync status banner */}
+      <SyncStatusBar />
+
+      {/* Header with profile + logout + install */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur-sm border-b border-gray-200">
         <div className="flex items-center gap-2">
           <button
@@ -148,15 +261,29 @@ function AppContent() {
             <p className="text-[10px] text-gray-500">{t('app.subtitle')}</p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="text-gray-500 hover:text-red-600 h-8 px-2"
-        >
-          <LogOut className="h-4 w-4 mr-1" />
-          <span className="text-xs">{t('common.logout')}</span>
-        </Button>
+        <div className="flex items-center gap-1">
+          {/* PWA Install button */}
+          {installPrompt && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleInstall}
+              className="text-gray-500 hover:text-green-600 h-8 px-2"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              <span className="text-xs">{t('offline.install') || 'Installer'}</span>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-gray-500 hover:text-red-600 h-8 px-2"
+          >
+            <LogOut className="h-4 w-4 mr-1" />
+            <span className="text-xs">{t('common.logout')}</span>
+          </Button>
+        </div>
       </header>
 
       {activeTab === 'rapport' && <CompteRenduTab />}
@@ -167,8 +294,17 @@ function AppContent() {
       {activeTab === 'historique' && <HistoriqueTab />}
 
       <ProfileDialog />
+
+      {/* Sync indicator (bottom-right corner) */}
+      <SyncIndicator />
     </AppLayout>
   );
+}
+
+// Type for beforeinstallprompt event
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
 export default function Home() {

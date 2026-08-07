@@ -1,0 +1,15 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "cr_session_token",
+          "value": "gXPmJWrQkfM1XOzB2ovnTkD853H6bXqN00bl9M57fgEvexVlAshdI4ocIGfyUMnt"
+        }
+      ],
+      "sessionStorage": []
+    }
+  ]
+}
