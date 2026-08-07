@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Wallet } from 'lucide-react';
+import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Wallet, PiggyBank, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/api';
 
@@ -35,7 +35,7 @@ export default function FinancesTab() {
   const queryClient = useQueryClient();
   const [newLabel, setNewLabel] = useState('');
   const [newAmount, setNewAmount] = useState('');
-  const [newType, setNewType] = useState<'income' | 'expense'>('income');
+  const [newType, setNewType] = useState<'income' | 'expense' | 'epargne' | 'don'>('income');
   const [newCategory, setNewCategory] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -66,21 +66,15 @@ export default function FinancesTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['finances'] }),
   });
 
-  const totalIncome = entries
-    .filter((e) => e.type === 'income')
-    .reduce((s, e) => s + e.amount, 0);
-  const totalExpense = entries
-    .filter((e) => e.type === 'expense')
-    .reduce((s, e) => s + e.amount, 0);
-  const balance = totalIncome - totalExpense;
+  const totalIncome = entries.filter((e) => e.type === 'income').reduce((s, e) => s + e.amount, 0);
+  const totalExpense = entries.filter((e) => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
+  const totalEpargne = entries.filter((e) => e.type === 'epargne').reduce((s, e) => s + e.amount, 0);
+  const totalDon = entries.filter((e) => e.type === 'don').reduce((s, e) => s + e.amount, 0);
+  const balance = totalIncome - totalExpense - totalEpargne - totalDon;
 
   const filteredEntries = entries.filter((e) => {
     if (filter === 'all') return true;
-    if (filter === 'income') return e.type === 'income';
-    if (filter === 'expense') return e.type === 'expense' && e.category !== 'epargne' && e.category !== 'don';
-    if (filter === 'epargne') return e.category === 'epargne';
-    if (filter === 'don') return e.category === 'don';
-    return true;
+    return e.type === filter;
   });
 
   const formatAmount = (amount: number) => {
@@ -90,7 +84,7 @@ export default function FinancesTab() {
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Card className="border-green-200 bg-green-50">
           <CardContent className="p-3 text-center">
             <ArrowUpCircle className="h-4 w-4 text-green-600 mx-auto mb-1" />
@@ -105,26 +99,42 @@ export default function FinancesTab() {
             <p className="text-[10px] text-gray-600">Sorties</p>
           </CardContent>
         </Card>
-        <Card className="border-[var(--theme-primary)] bg-[var(--theme-primary-light)]">
+        <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-3 text-center">
-            <Wallet className="h-4 w-4 text-[var(--theme-primary)] mx-auto mb-1" />
-            <p className="text-lg font-bold text-[var(--theme-primary)]">{formatAmount(balance)}</p>
-            <p className="text-[10px] text-gray-600">Solde</p>
+            <PiggyBank className="h-4 w-4 text-amber-600 mx-auto mb-1" />
+            <p className="text-lg font-bold text-amber-600">{formatAmount(totalEpargne)}</p>
+            <p className="text-[10px] text-gray-600">Épargne</p>
+          </CardContent>
+        </Card>
+        <Card className="border-purple-200 bg-purple-50">
+          <CardContent className="p-3 text-center">
+            <Heart className="h-4 w-4 text-purple-600 mx-auto mb-1" />
+            <p className="text-lg font-bold text-purple-600">{formatAmount(totalDon)}</p>
+            <p className="text-[10px] text-gray-600">Dons à Dieu</p>
           </CardContent>
         </Card>
       </div>
+      <Card className="border-[var(--theme-primary)] bg-[var(--theme-primary-light)]">
+        <CardContent className="p-3 text-center">
+          <Wallet className="h-4 w-4 text-[var(--theme-primary)] mx-auto mb-1" />
+          <p className="text-xl font-bold text-[var(--theme-primary)]">{formatAmount(balance)}</p>
+          <p className="text-[10px] text-gray-600">Solde disponible (Entrées - Sorties - Épargne - Dons)</p>
+        </CardContent>
+      </Card>
 
       {/* Add transaction */}
       <Card className="border-[var(--theme-primary)]">
         <CardContent className="p-3 space-y-2">
           <div className="flex gap-2">
-            <Select value={newType} onValueChange={(v) => setNewType(v as 'income' | 'expense')}>
+            <Select value={newType} onValueChange={(v) => setNewType(v as 'income' | 'expense' | 'epargne' | 'don')}>
               <SelectTrigger className="w-28 h-9 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="income">Entrée</SelectItem>
                 <SelectItem value="expense">Sortie</SelectItem>
+                <SelectItem value="epargne">Épargne</SelectItem>
+                <SelectItem value="don">Don à Dieu</SelectItem>
               </SelectContent>
             </Select>
             <Input
@@ -141,17 +151,13 @@ export default function FinancesTab() {
               className="w-28 h-9 text-sm"
             />
           </div>
-          {newType === 'expense' && (
-            <Select value={newCategory} onValueChange={setNewCategory}>
-              <SelectTrigger className="w-full h-8 text-xs">
-                <SelectValue placeholder="Catégorie (optionnel)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="epargne">Épargne</SelectItem>
-                <SelectItem value="don">Don à Dieu</SelectItem>
-                <SelectItem value="autre">Autre</SelectItem>
-              </SelectContent>
-            </Select>
+          {(newType === 'expense' || newType === 'income') && (
+            <Input
+              placeholder="Catégorie (optionnel)"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="w-full h-8 text-xs"
+            />
           )}
           <Button
             onClick={() => {
@@ -188,7 +194,7 @@ export default function FinancesTab() {
                 <SelectItem value="income">Entrées</SelectItem>
                 <SelectItem value="expense">Sorties</SelectItem>
                 <SelectItem value="epargne">Épargne</SelectItem>
-                <SelectItem value="don">Don à Dieu</SelectItem>
+                <SelectItem value="don">Dons à Dieu</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -202,10 +208,14 @@ export default function FinancesTab() {
                 className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  entry.type === 'income' ? 'bg-green-100' : 'bg-red-100'
+                  entry.type === 'income' ? 'bg-green-100' : entry.type === 'epargne' ? 'bg-amber-100' : entry.type === 'don' ? 'bg-purple-100' : 'bg-red-100'
                 }`}>
                   {entry.type === 'income' ? (
                     <ArrowUpCircle className="h-4 w-4 text-green-600" />
+                  ) : entry.type === 'epargne' ? (
+                    <PiggyBank className="h-4 w-4 text-amber-600" />
+                  ) : entry.type === 'don' ? (
+                    <Heart className="h-4 w-4 text-purple-600" />
                   ) : (
                     <ArrowDownCircle className="h-4 w-4 text-red-600" />
                   )}
@@ -218,7 +228,7 @@ export default function FinancesTab() {
                   </p>
                 </div>
                 <p className={`text-sm font-semibold shrink-0 ${
-                  entry.type === 'income' ? 'text-green-600' : 'text-red-600'
+                  entry.type === 'income' ? 'text-green-600' : entry.type === 'epargne' ? 'text-amber-600' : entry.type === 'don' ? 'text-purple-600' : 'text-red-600'
                 }`}>
                   {entry.type === 'income' ? '+' : '-'}{formatAmount(entry.amount)}
                 </p>
