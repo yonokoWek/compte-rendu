@@ -107,7 +107,7 @@ interface BookItem {
   notes: { id: string; content: string; positionX: number; positionY: number }[];
 }
 
-interface BibleLog { id: string; date: string; chapters: number; }
+interface BibleLog { id: string; date: string; chapters: number; duration: number; reference: string; }
 interface PrayerNeed { id: string; text: string; resolved: boolean; }
 interface ReadingNote {
   id: string;
@@ -292,6 +292,7 @@ export default function LectureTab() {
   const [bibleBookSelect, setBibleBookSelect] = useState('');
   const [bibleChapterFrom, setBibleChapterFrom] = useState('');
   const [bibleChapterTo, setBibleChapterTo] = useState('');
+  const [bibleDurationInput, setBibleDurationInput] = useState<Record<string, string>>({});
 
   const { data: books = [] } = useQuery<BookItem[]>({ queryKey: ['books'], queryFn: () => authFetch('/api/books').then((r) => r.json()) });
   const { data: bibleLogs = [] } = useQuery<BibleLog[]>({ queryKey: ['bible', period.startDate, period.endDate], queryFn: () => authFetch(`/api/bible?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`).then((r) => r.json()) });
@@ -313,7 +314,7 @@ export default function LectureTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['books'] }),
   });
   const saveBibleLog = useMutation({
-    mutationFn: (data: { date: string; chapters: number; reference?: string }) =>
+    mutationFn: (data: { date: string; chapters: number; duration?: number; reference?: string }) =>
       authFetch('/api/bible', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bible'] }),
   });
@@ -361,9 +362,14 @@ export default function LectureTab() {
     setUploadingBookId(null);
   };
 
-  const bibleLogMap: Record<string, number> = {};
-  for (const log of bibleLogs) bibleLogMap[log.date] = log.chapters;
-  const totalBibleChapters = Object.values(bibleLogMap).reduce((s, v) => s + v, 0);
+  const bibleLogMap: Record<string, { chapters: number; duration: number }> = {};
+  for (const log of bibleLogs) {
+    if (!bibleLogMap[log.date]) bibleLogMap[log.date] = { chapters: 0, duration: 0 };
+    bibleLogMap[log.date].chapters += log.chapters;
+    bibleLogMap[log.date].duration += log.duration || 0;
+  }
+  const totalBibleChapters = Object.values(bibleLogMap).reduce((s, v) => s + v.chapters, 0);
+  const totalBibleDuration = Object.values(bibleLogMap).reduce((s, v) => s + v.duration, 0);
   const activeBooks = books.filter((b) => b.status === 'in_progress');
   const finishedBooks = books.filter((b) => b.status === 'finished');
 
@@ -561,12 +567,10 @@ export default function LectureTab() {
 
         {/* ============ BIBLE TAB ============ */}
         <TabsContent value="bible" className="space-y-4 mt-4">
-          <Card className="border-[var(--theme-primary)] bg-[var(--theme-primary-light)]">
-            <CardContent className="p-4 text-center">
-              <p className="text-xs text-gray-600">Total chapitres cette période</p>
-              <p className="text-3xl font-bold text-[var(--theme-primary)]">{totalBibleChapters}</p>
-            </CardContent>
-          </Card>
+          <div className="flex gap-3">
+            <Card className="flex-1 border-[var(--theme-primary)] bg-[var(--theme-primary-light)]"><CardContent className="p-3 text-center"><p className="text-xs text-gray-600">Chapitres cette période</p><p className="text-2xl font-bold text-[var(--theme-primary)]">{totalBibleChapters}</p></CardContent></Card>
+            <Card className="flex-1 border-[var(--theme-primary)] bg-[var(--theme-primary-light)]"><CardContent className="p-3 text-center"><p className="text-xs text-gray-600">Temps de lecture</p><p className="text-2xl font-bold text-[var(--theme-primary)]">{totalBibleDuration >= 60 ? `${Math.floor(totalBibleDuration / 60)}h${totalBibleDuration % 60 > 0 ? ` ${totalBibleDuration % 60}` : ''}` : `${totalBibleDuration} min`}</p></CardContent></Card>
+          </div>
 
           {/* Bible reading entry with book/chapter selector */}
           <Card className="border-[var(--theme-primary)]">
@@ -620,6 +624,20 @@ export default function LectureTab() {
                   </div>
                 )}
 
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-500">⏱ Temps de lecture (min)</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={bibleDurationInput[format(new Date(), 'yyyy-MM-dd')] ?? ''}
+                      onChange={(e) => setBibleDurationInput((p) => ({ ...p, [format(new Date(), 'yyyy-MM-dd')]: e.target.value }))}
+                      className="h-8 text-xs text-center"
+                    />
+                  </div>
+                </div>
+
                 <Button
                   onClick={() => {
                     if (!bibleBookSelect) { toast.error('Choisissez un livre'); return; }
@@ -627,16 +645,19 @@ export default function LectureTab() {
                     const to = parseInt(bibleChapterTo || '1');
                     const count = to - from + 1;
                     const today = format(new Date(), 'yyyy-MM-dd');
-                    const currentCount = bibleLogMap[today] || 0;
+                    const currentLog = bibleLogMap[today] || { chapters: 0, duration: 0 };
                     const ref = `${bibleBookSelect} ${from}${to > from ? `-${to}` : ''}`;
+                    const durationInput = parseInt(bibleDurationInput[today] || '') || 0;
                     saveBibleLog.mutate({
                       date: today,
-                      chapters: currentCount + count,
+                      chapters: currentLog.chapters + count,
+                      duration: currentLog.duration + durationInput,
                       reference: ref,
                     });
                     setBibleBookSelect('');
                     setBibleChapterFrom('');
                     setBibleChapterTo('');
+                    setBibleDurationInput((p) => ({ ...p, [today]: '' }));
                     toast.success(`✅ ${count} chapitre(s) enregistré(s) - ${ref}`);
                   }}
                   disabled={!bibleBookSelect}
@@ -653,7 +674,7 @@ export default function LectureTab() {
           <Card>
             <CardContent className="p-3">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">📅 Chapitres lus par jour</h3>
+                <h3 className="text-sm font-semibold text-gray-700">📅 Lecture biblique par jour</h3>
                 <button onClick={() => { setNoteContext({ bibleRef: 'Bible' }); setNoteDialogOpen(true); }} className="p-1.5 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 rounded" title="Note pour la Bible">
                   <StickyNote className="h-4 w-4" />
                 </button>
@@ -665,22 +686,38 @@ export default function LectureTab() {
                   if (date > period.endDate) return null;
                   const dateStr = format(date, 'yyyy-MM-dd');
                   const dayIndex = getDay(date);
+                  const logData = bibleLogMap[dateStr] || { chapters: 0, duration: 0 };
                   return (
                     <div key={dateStr} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-600 w-20 capitalize">{DAY_NAMES_SHORT[dayIndex === 0 ? 6 : dayIndex - 1]}</span>
+                      <span className="text-xs text-gray-600 w-16 capitalize shrink-0">{DAY_NAMES_SHORT[dayIndex === 0 ? 6 : dayIndex - 1]}</span>
                       <Input
                         type="number"
                         min="0"
                         placeholder="0"
-                        value={chapterInput[dateStr] ?? bibleLogMap[dateStr] ?? ''}
+                        value={chapterInput[dateStr] ?? (logData.chapters ? String(logData.chapters) : '')}
                         onChange={(e) => {
                           const val = parseInt(e.target.value) || 0;
                           setChapterInput((p) => ({ ...p, [dateStr]: e.target.value }));
-                          saveBibleLog.mutate({ date: dateStr, chapters: val });
+                          const dur = bibleDurationInput[dateStr] ? parseInt(bibleDurationInput[dateStr]) || 0 : logData.duration || 0;
+                          saveBibleLog.mutate({ date: dateStr, chapters: val, duration: dur });
                         }}
-                        className="flex-1 h-8 text-sm text-center"
+                        className="w-14 h-8 text-xs text-center"
                       />
                       <span className="text-[10px] text-gray-400">ch.</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={bibleDurationInput[dateStr] ?? (logData.duration ? String(logData.duration) : '')}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setBibleDurationInput((p) => ({ ...p, [dateStr]: e.target.value }));
+                          const ch = chapterInput[dateStr] ? parseInt(chapterInput[dateStr]) || 0 : logData.chapters || 0;
+                          saveBibleLog.mutate({ date: dateStr, chapters: ch, duration: val });
+                        }}
+                        className="w-14 h-8 text-xs text-center"
+                      />
+                      <span className="text-[10px] text-gray-400">min</span>
                     </div>
                   );
                 })}

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FileText, BookOpen, Wallet, CheckSquare, History } from 'lucide-react';
+import { FileText, BookOpen, Wallet, CheckSquare, History, TrendingUp } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useT } from '@/lib/use-t';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { getPreset, applyThemeCSSVariables } from '@/lib/themes';
 
 const tabs = [
   { id: 'rapport', labelKey: 'tab.rapport', icon: FileText },
+  { id: 'progression', labelKey: 'tab.progression', icon: TrendingUp },
   { id: 'lecture', labelKey: 'tab.lecture', icon: BookOpen },
   { id: 'finances', labelKey: 'tab.finances', icon: Wallet },
   { id: 'activites', labelKey: 'tab.activites', icon: CheckSquare },
@@ -42,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex flex-col items-center py-2 px-3 text-xs transition-colors min-w-[56px]',
+                  'flex flex-col items-center py-2 px-1.5 text-xs transition-colors min-w-[48px]',
                   isActive
                     ? 'text-[var(--theme-primary)]'
                     : 'text-gray-500 hover:text-gray-700'

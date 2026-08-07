@@ -9,6 +9,7 @@ import LectureTab from '@/components/lecture-tab';
 import FinancesTab from '@/components/finances-tab';
 import ActivitiesTab from '@/components/activities-tab';
 import HistoriqueTab from '@/components/historique-tab';
+import ProgressionTab from '@/components/progression-tab';
 import ProfileDialog from '@/components/profile-dialog';
 import AuthScreen from '@/components/auth-screen';
 import { useAppStore } from '@/store/app-store';
@@ -159,6 +160,7 @@ function AppContent() {
       </header>
 
       {activeTab === 'rapport' && <CompteRenduTab />}
+      {activeTab === 'progression' && <ProgressionTab />}
       {activeTab === 'lecture' && <LectureTab />}
       {activeTab === 'finances' && <FinancesTab />}
       {activeTab === 'activites' && <ActivitiesTab />}

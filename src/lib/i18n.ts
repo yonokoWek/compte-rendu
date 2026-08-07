@@ -17,6 +17,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     'tab.finances': 'Finances',
     'tab.activites': 'Activités',
     'tab.historique': 'Historique',
+    'tab.progression': 'Progression',
     
     // Auth
     'auth.createAccount': 'Créer un compte',
@@ -171,6 +172,29 @@ export const translations: Record<Lang, Record<string, string>> = {
     'common.h': 'h',
     'common.part': 'Part.',
     'common.noData': 'Aucune donnée',
+
+    // Progression
+    'progression.allActivities': 'Toutes les activités',
+    'progression.timeWithGod': 'Temps passé avec Dieu',
+    'progression.bibleReading': 'Lecture Biblique',
+    'progression.viewProgression': 'Voir la progression',
+    'progression.selectActivity': 'Choisir une activité',
+    'progression.allGroup': 'Tout le groupe',
+    'progression.totalTime': 'Temps total',
+    'progression.daysActive': 'Jours actifs',
+    'progression.avgPerDay': 'Moyenne/jour',
+    'progression.perActiveDay': 'par jour actif',
+    'progression.trend': 'Tendance',
+    'progression.trendUp': '↗ Hausse',
+    'progression.trendDown': '↘ Baisse',
+    'progression.trendStable': '→ Stable',
+    'progression.halfPeriod': '1ère vs 2ème moitié',
+    'progression.bibleChapters': 'Chapitres Bible',
+    'progression.readingTime': 'Temps de lecture',
+    'progression.chaptersRead': 'chapitres lus',
+    'progression.dailyChart': 'Graphique quotidien',
+    'progression.perActivity': 'Détail par activité',
+    'progression.dailyDetail': 'Détail par jour',
   },
   en: {
     // App
@@ -183,6 +207,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     'tab.finances': 'Finances',
     'tab.activites': 'Activities',
     'tab.historique': 'History',
+    'tab.progression': 'Progress',
     
     // Auth
     'auth.createAccount': 'Create Account',
@@ -337,5 +362,28 @@ export const translations: Record<Lang, Record<string, string>> = {
     'common.h': 'h',
     'common.part': 'Part.',
     'common.noData': 'No data',
+
+    // Progression
+    'progression.allActivities': 'All Activities',
+    'progression.timeWithGod': 'Time with God',
+    'progression.bibleReading': 'Bible Reading',
+    'progression.viewProgression': 'View Progression',
+    'progression.selectActivity': 'Select an activity',
+    'progression.allGroup': 'Whole group',
+    'progression.totalTime': 'Total Time',
+    'progression.daysActive': 'Active Days',
+    'progression.avgPerDay': 'Avg/Day',
+    'progression.perActiveDay': 'per active day',
+    'progression.trend': 'Trend',
+    'progression.trendUp': '↗ Up',
+    'progression.trendDown': '↘ Down',
+    'progression.trendStable': '→ Stable',
+    'progression.halfPeriod': '1st vs 2nd half',
+    'progression.bibleChapters': 'Bible Chapters',
+    'progression.readingTime': 'Reading Time',
+    'progression.chaptersRead': 'chapters read',
+    'progression.dailyChart': 'Daily Chart',
+    'progression.perActivity': 'Per Activity Breakdown',
+    'progression.dailyDetail': 'Daily Detail',
   },
 };

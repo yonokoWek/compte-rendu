@@ -131,6 +131,7 @@ model BibleReadingLog {
   id          String   @id @default(cuid())
   date        String
   chapters    Int      @default(0)
+  duration    Int      @default(0)
   reference   String   @default("")
   userId      String
   createdAt   DateTime @default(now())

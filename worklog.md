@@ -280,3 +280,47 @@ Stage Summary:
 - Export zip: 244KB clean archive with all source code and deployment configs
 - New files: Dockerfile, docker-compose.yml, docker-entrypoint.sh, install.sh, export.sh, update.sh, .env.example, .dockerignore, Caddyfile.production.example
 - Updated: package.json (renamed, v1.0.0, deployment scripts)
+---
+Task ID: 8
+Agent: Main
+Task: Add progression tracking session + Bible reading time/duration
+
+Work Log:
+- Added `duration` field (Int, default 0) to BibleReadingLog in prisma schema
+- Updated Bible API (POST) to handle `duration` parameter in upsert
+- Updated lecture-tab.tsx:
+  - BibleLog interface now includes `duration` and `reference` fields
+  - bibleLogMap is now Record<string, { chapters: number; duration: number }> to aggregate per date
+  - Summary cards show both "Chapitres cette période" and "Temps de lecture" (formatted as Xh Y min)
+  - Added bibleDurationInput state for tracking duration per day
+  - Daily bible reading rows now have TWO inputs: chapters + minutes (side by side)
+  - Duration input field added before the book/chapter selector save button
+  - saveBibleLog mutation accepts optional `duration` field
+- Created /api/progression/route.ts (GET): full statistics endpoint
+  - Parameters: startDate, endDate, filterType (all|group|category|bible|time-with-god), filterId
+  - Returns dailyData (per-day breakdown), summary (totals, averages, trend data), groups, allCategories
+  - "time-with-god" filter = all personal (isPersonal: true) categories
+  - Bible data (chapters + duration) merged into daily data when filter is all or bible
+- Created /src/components/progression-tab.tsx: full progression view
+  - Period selector (week/month/year) with navigation arrows
+  - Filter dropdown: All Activities, Temps avec Dieu, Lecture Biblique, Groups
+  - 4 summary cards: Total Time, Active Days, Average/Day, Trend (up/down/stable comparing halves)
+  - 2 Bible-specific cards when applicable: Chapters + Reading Time
+  - MiniBarChart component: visual daily bar chart with 4 view modes (minutes, count, bible chapters, bible duration)
+  - Per-activity breakdown with progress bars
+  - Daily detail list with badges for time, count, chapters, duration
+- Added 6th tab "Progression" with TrendingUp icon to app-layout.tsx (tabs array)
+- Adjusted tab padding from px-3/min-w-[56px] to px-1.5/min-w-[48px] to fit 6 tabs
+- Added ProgressionTab import and render in page.tsx
+- Added i18n keys for both FR and EN (22 new progression.* keys + tab.progression)
+- Fixed ESLint error: ?? mixed with || requires parens
+- Verified: lint clean (0 errors), dev server returns 200
+
+Stage Summary:
+- New Progression tab shows user's progress over configurable periods (week/month/year)
+- Users can filter by: all activities, time with God, Bible reading, or specific groups
+- Bible reading now tracks BOTH chapters read AND reading duration (minutes)
+- 4 summary cards + bar chart + daily detail list
+- Trend detection compares first half vs second half of period
+- All features bilingual (FR/EN)
+- Key files: src/components/progression-tab.tsx (new), src/app/api/progression/route.ts (new), prisma/schema.prisma (duration added), src/components/lecture-tab.tsx (bible duration), src/components/app-layout.tsx (6 tabs), src/lib/i18n.ts (22 keys)

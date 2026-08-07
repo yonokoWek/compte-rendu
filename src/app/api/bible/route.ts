@@ -33,11 +33,13 @@ export async function POST(request: Request) {
       where: { date_userId: { date: data.date, userId: auth.user.id } },
       update: {
         chapters: data.chapters || 0,
+        duration: data.duration || 0,
         reference: data.reference || '',
       },
       create: {
         date: data.date,
         chapters: data.chapters || 0,
+        duration: data.duration || 0,
         reference: data.reference || '',
         userId: auth.user.id,
       },
