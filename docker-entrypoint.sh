@@ -15,15 +15,7 @@ if [ ! -f "/app/data/compte-rendu.db" ]; then
     
     # Ensure prisma schema is available
     if [ -f "/app/prisma/schema.prisma" ]; then
-        # We need prisma CLI - use npx or bunx
-        export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
-        export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-        
-        # Create a minimal package.json for prisma if needed
         cd /app
-        
-        # Use bun to run prisma db push
-        # The prisma client was copied from the builder
         bunx prisma db push --accept-data-loss 2>/dev/null || true
         echo "✅ Base de données créée"
     fi

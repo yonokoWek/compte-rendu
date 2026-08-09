@@ -1,6 +1,6 @@
 # ==============================================
 # Compte Rendu - Docker Image
-# Multi-stage build with Bun + Chromium
+# Multi-stage build with Bun (no Chromium needed - PDF is client-side)
 # ==============================================
 
 # ---- Stage 1: Builder ----
@@ -27,22 +27,19 @@ RUN bunx prisma generate
 COPY . .
 
 # Build Next.js standalone
-# This also copies static + public into .next/standalone/
 RUN bun run build
 
 # ---- Stage 2: Runtime ----
 FROM debian:bookworm-slim AS runner
 
-# Install minimal runtime dependencies
+# Install minimal runtime dependencies (fonts for PDF rendering)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
     fonts-noto \
     fonts-noto-cjk \
     fonts-liberation \
     ca-certificates \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/chromium /usr/bin/google-chrome
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Bun runtime
 RUN curl -fsSL https://bun.sh/install | bash \
@@ -75,13 +72,6 @@ RUN chmod +x /app/docker-entrypoint.sh
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data && chown appuser:appuser /app/data
-
-# Create tmp directory for PDF generation
-RUN mkdir -p /tmp/pdf-gen && chown appuser:appuser /tmp/pdf-gen
-
-# Tell Playwright to use system Chromium
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # App environment
 ENV NODE_ENV=production

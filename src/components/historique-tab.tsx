@@ -15,6 +15,7 @@ import { Download, CalendarDays, ChevronLeft, ChevronRight, Clock, TrendingUp } 
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/api';
 import { formatMinutes } from '@/store/app-store';
+import { generateClientPDF } from '@/lib/client-pdf';
 
 interface Category {
   id: string;
@@ -77,17 +78,10 @@ export default function HistoriqueTab() {
         }),
       });
       const reportData = await reportRes.json();
-
-      const pdfRes = await authFetch('/api/generate-pdf', {
-        method: 'POST',
-        body: JSON.stringify({ html: reportData.html }),
-      });
-      const pdfData = await pdfRes.json();
-
-      const link = document.createElement('a');
-      link.href = pdfData.pdf;
-      link.download = `compte-rendu-${format(start, 'yyyy-MM-dd')}.pdf`;
-      link.click();
+      await generateClientPDF(
+        reportData.html,
+        `compte-rendu-${format(start, 'yyyy-MM-dd')}.pdf`
+      );
       toast.success('PDF exporté avec succès');
     } catch {
       toast.error('Erreur lors de la génération du PDF');

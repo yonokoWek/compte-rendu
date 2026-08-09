@@ -411,3 +411,37 @@ Stage Summary:
 - 264K deployable zip with complete source + deployment scripts
 - Docker alternative also available (Dockerfile + docker-compose.yml)
 - Key files: install.sh (rewritten), export.sh (updated), update-from-local.sh (new), .env.example (new), .dockerignore (updated)
+
+---
+Task ID: 11
+Agent: Main
+Task: Replace server-side Chromium PDF with client-side jsPDF+html2canvas
+
+Work Log:
+- Identified current PDF flow: client → POST /api/report (gets HTML) → POST /api/generate-pdf (Chromium renders HTML → PDF) → base64 PDF download
+- Installed jspdf and html2canvas client-side libraries
+- Created /src/lib/client-pdf.ts: generateClientPDF() and exportReportPDF()
+  - Uses isolated iframe to render report HTML (avoids CSS conflicts with Tailwind CSS 4 lab() colors)
+  - html2canvas captures iframe body at 2x scale for high quality
+  - jsPDF creates A4 landscape PDF with automatic multi-page splitting
+  - Downloads directly in browser (no server involved)
+- Updated /src/components/compte-rendu-tab.tsx: replaced 2-step server PDF with single client-side call
+- Updated /src/components/historique-tab.tsx: same replacement for all PDF export buttons
+- Removed /src/app/api/generate-pdf/route.ts (no longer needed)
+- Removed playwright and puppeteer-core from package.json dependencies
+- Updated /install.sh: removed Chromium installation, Playwright env vars
+- Updated /Dockerfile: removed Chromium and Playwright from runtime image
+- Updated /docker-entrypoint.sh: removed Playwright env vars
+- Fixed html2canvas "unsupported color function lab()" error by using isolated iframe rendering
+- Verified via Agent Browser:
+  - POST /api/report → 200 (HTML generated correctly)
+  - Client-side PDF generation runs without errors
+  - No console errors
+  - Historique tab also works with multiple PDF export buttons
+
+Stage Summary:
+- PDF generation moved from server-side (Chromium/Playwright) to client-side (jsPDF+html2canvas)
+- Same quality output: A4 landscape, 2x scale, multi-page support
+- No server dependency for PDF: app can now deploy on ANY free platform (Render, Vercel, etc.)
+- Removed ~500MB of Chromium dependencies from deployment
+- Key files: src/lib/client-pdf.ts (new), src/components/compte-rendu-tab.tsx (updated), src/components/historique-tab.tsx (updated), install.sh (updated), Dockerfile (updated)

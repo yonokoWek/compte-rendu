@@ -57,14 +57,13 @@ apt-get upgrade -y -qq > /dev/null 2>&1
 echo -e "${GREEN}✅ Système à jour${NC}"
 
 # ---- Étape 2 : Dépendances système ----
-echo -e "${YELLOW}[2/8] Installation de Chromium, polices et Caddy...${NC}"
+echo -e "${YELLOW}[2/8] Installation des dépendances système...${NC}"
 apt-get install -y -qq \
     curl unzip wget software-properties-common \
     apt-transport-https ca-certificates gnupg \
-    chromium \
     fonts-noto fonts-noto-cjk fonts-liberation \
     > /dev/null 2>&1
-echo -e "${GREEN}✅ Chromium et polices installés${NC}"
+echo -e "${GREEN}✅ Dépendances système installées${NC}"
 
 # ---- Étape 3 : Installer Caddy (reverse proxy + HTTPS auto) ----
 echo -e "${YELLOW}[3/8] Installation de Caddy (HTTPS automatique)...${NC}"
@@ -137,8 +136,6 @@ bunx prisma db push --accept-data-loss 2>&1 | tail -1
 echo -e "${GREEN}✅ Base de données créée${NC}"
 
 # Compiler l'application
-export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
-export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 bun run build 2>&1 | tail -3
 echo -e "${GREEN}✅ Application compilée${NC}"
 
@@ -157,8 +154,6 @@ Group=www-data
 WorkingDirectory=$APP_DIR
 Environment=NODE_ENV=production
 Environment=DATABASE_URL=file:$APP_DIR/db/compte-rendu.db
-Environment=PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
-Environment=PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 Environment=PORT=3000
 ExecStart=/usr/local/bin/bun .next/standalone/server.js
 Restart=always

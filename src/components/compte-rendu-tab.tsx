@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/api';
+import { generateClientPDF } from '@/lib/client-pdf';
 
 interface Category {
   id: string;
@@ -158,7 +159,7 @@ export default function CompteRenduTab() {
     }
   };
 
-  // PDF generation
+  // PDF generation (client-side, no server needed)
   const [pdfLoading, setPdfLoading] = useState(false);
   const handleExportPDF = async () => {
     setPdfLoading(true);
@@ -168,15 +169,10 @@ export default function CompteRenduTab() {
         body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd') }),
       });
       const reportData = await reportRes.json();
-      const pdfRes = await authFetch('/api/generate-pdf', {
-        method: 'POST',
-        body: JSON.stringify({ html: reportData.html }),
-      });
-      const pdfData = await pdfRes.json();
-      const link = document.createElement('a');
-      link.href = pdfData.pdf;
-      link.download = `compte-rendu-${format(period.startDate, 'yyyy-MM-dd')}.pdf`;
-      link.click();
+      await generateClientPDF(
+        reportData.html,
+        `compte-rendu-${format(period.startDate, 'yyyy-MM-dd')}.pdf`
+      );
       toast.success('PDF exporté');
     } catch {
       toast.error('Erreur PDF');
