@@ -32,6 +32,8 @@ interface AppState {
   sessionToken: string | null;
   setSessionToken: (token: string | null) => void;
   isAuthenticated: boolean;
+  isGuest: boolean;
+  setIsGuest: (v: boolean) => void;
 }
 
 function getPeriod(type: PeriodType, offset: number = 0): PeriodRange {
@@ -93,7 +95,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLanguage: (lang) => set({ language: lang }),
   sessionToken: null,
   isAuthenticated: false,
-  setSessionToken: (token) => set({ sessionToken: token, isAuthenticated: token !== null }),
+  isGuest: false,
+  setIsGuest: (v) => set({ isGuest: v }),
+  setSessionToken: (token) => set({ sessionToken: token, isAuthenticated: token !== null, isGuest: false }),
 }));
 
 // Helper functions

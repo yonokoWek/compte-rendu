@@ -213,6 +213,13 @@ export const translations: Record<Lang, Record<string, string>> = {
     'offline.onlineBadge': 'Connecté',
     'offline.dataSaved': 'Données sauvegardées localement',
     'offline.willSync': 'Sera synchronisé à la reconnexion',
+
+    // Guest mode
+    'guest.continueWithoutAccount': 'Continuer sans compte',
+    'guest.createAccount': 'Créer un compte',
+    'guest.signUp': "S'inscrire",
+    'guest.bannerMessage': 'Vos données sont seulement sur cet appareil. Créez un compte pour y accéder partout.',
+    'guest.bannerMessageShort': 'Données locales uniquement.',
   },
   en: {
     // App
@@ -421,5 +428,12 @@ export const translations: Record<Lang, Record<string, string>> = {
     'offline.onlineBadge': 'Online',
     'offline.dataSaved': 'Data saved locally',
     'offline.willSync': 'Will sync when reconnected',
+
+    // Guest mode
+    'guest.continueWithoutAccount': 'Continue without account',
+    'guest.createAccount': 'Create account',
+    'guest.signUp': 'Sign up',
+    'guest.bannerMessage': 'Your data is only on this device. Create an account to access it everywhere.',
+    'guest.bannerMessageShort': 'Data saved locally only.',
   },
 };

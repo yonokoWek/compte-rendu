@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Phone, Mail, Lock, User, ArrowLeft, Shield, MessageCircle, Loader2 } from 'lucide-react';
+import { Phone, Mail, Lock, User, ArrowLeft, Shield, MessageCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { useT } from '@/lib/use-t';
 
 interface AuthScreenProps {
   onAuthSuccess: (token: string) => void;
+  onStartAsGuest?: () => void;
 }
 
 type AuthStep = 'contact' | 'verify' | 'setPin' | 'login';
@@ -29,7 +30,7 @@ type StepData = {
   loginPin: string;
 };
 
-export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
+export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreenProps) {
   const t = useT();
   const [step, setStep] = useState<AuthStep>('contact');
   const [mode, setMode] = useState<'register' | 'login'>('register');
@@ -327,31 +328,50 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 </Button>
               )}
 
-              {/* Toggle register/login */}
+              {/* Toggle register/login + guest option */}
               {step === 'contact' && (
-                <p className="text-center text-xs text-muted-foreground">
-                  {mode === 'register' ? (
+                <div className="space-y-3">
+                  {/* Continue as guest option */}
+                  {onStartAsGuest && (
                     <>
-                      {t('auth.alreadyHaveAccount')}{' '}
-                      <button
-                        onClick={() => setMode('login')}
-                        className="text-orange-600 font-medium hover:underline"
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                        <div className="relative flex justify-center text-xs"><span className="bg-white px-3 text-muted-foreground">ou</span></div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={onStartAsGuest}
+                        className="w-full border-gray-300 hover:bg-gray-50 text-gray-700"
                       >
-                        {t('auth.login')}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {t('auth.noAccount')}{' '}
-                      <button
-                        onClick={() => setMode('register')}
-                        className="text-orange-600 font-medium hover:underline"
-                      >
-                        {t('auth.createAccount')}
-                      </button>
+                        <Eye className="h-4 w-4 mr-2" />
+                        {t('guest.continueWithoutAccount')}
+                      </Button>
                     </>
                   )}
-                </p>
+                  <p className="text-center text-xs text-muted-foreground">
+                    {mode === 'register' ? (
+                      <>
+                        {t('auth.alreadyHaveAccount')}{' '}
+                        <button
+                          onClick={() => setMode('login')}
+                          className="text-orange-600 font-medium hover:underline"
+                        >
+                          {t('auth.login')}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {t('auth.noAccount')}{' '}
+                        <button
+                          onClick={() => setMode('register')}
+                          className="text-orange-600 font-medium hover:underline"
+                        >
+                          {t('auth.createAccount')}
+                        </button>
+                      </>
+                    )}
+                  </p>
+                </div>
               )}
             </div>
           )}

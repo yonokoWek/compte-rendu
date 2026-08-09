@@ -36,12 +36,17 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests and non-same-origin requests
-  if (request.method !== 'GET' || url.origin !== self.location.origin) {
-    // For POST/PUT/DELETE: if offline, queue them
-    if (request.method !== 'GET' && !navigator.onLine) {
+  // Skip non-same-origin requests
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Handle non-GET requests (POST/PUT/DELETE)
+  if (request.method !== 'GET') {
+    if (!navigator.onLine) {
       event.respondWith(queueOfflineRequest(request));
     }
+    // When online, let the request pass through normally (don't call event.respondWith)
     return;
   }
 

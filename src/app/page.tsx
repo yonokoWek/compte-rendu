@@ -15,7 +15,7 @@ import SyncStatusBar, { SyncIndicator } from '@/components/sync-status';
 import AuthScreen from '@/components/auth-screen';
 import { useAppStore } from '@/store/app-store';
 import { useT } from '@/lib/use-t';
-import { Loader2, LogOut, Download } from 'lucide-react';
+import { Loader2, LogOut, Download, UserPlus, CloudOff, Cloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const queryClient = new QueryClient({
@@ -66,9 +66,12 @@ function registerServiceWorker() {
 
 function AppContent() {
   const [status, setStatus] = useState<AppStatus>('loading');
+  const [showAuthScreen, setShowAuthScreen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const activeTab = useAppStore((s) => s.activeTab);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const isGuest = useAppStore((s) => s.isGuest);
+  const setIsGuest = useAppStore((s) => s.setIsGuest);
   const setSessionToken = useAppStore((s) => s.setSessionToken);
   const setThemeColor = useAppStore((s) => s.setThemeColor);
   const setLanguage = useAppStore((s) => s.setLanguage);
@@ -91,6 +94,32 @@ function AppContent() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
+  // Guest login function (defined before useEffect that uses it)
+  const handleGuestLogin = async (deviceId: string) => {
+    try {
+      const res = await fetch('/api/auth/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId }),
+      });
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem('cr_session_token', data.token);
+        setSessionToken(data.token);
+        setIsGuest(true);
+      }
+    } catch (err) {
+      console.error('Guest login failed:', err);
+    }
+  };
+
+  // Start as guest
+  const handleStartAsGuest = () => {
+    const deviceId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    localStorage.setItem('cr_device_id', deviceId);
+    handleGuestLogin(deviceId);
+  };
+
   // Check existing session on mount
   useEffect(() => {
     if (initializedRef.current) return;
@@ -99,35 +128,32 @@ function AppContent() {
     const token = localStorage.getItem('cr_session_token');
     const finish = () => setStatus('unauth');
 
-    if (!token) {
+    if (token) {
+      // Validate existing session
+      fetch('/api/auth/session', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then((data) => {
+          if (data.user) {
+            setSessionToken(token);
+            if (data.user.isGuest) setIsGuest(true);
+            if (data.user.themeColor) setThemeColor(data.user.themeColor);
+            if (data.user.language) setLanguage(data.user.language);
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem('cr_session_token');
+          localStorage.removeItem('cr_device_id');
+        })
+        .finally(finish);
+    } else {
       finish();
-      return;
     }
-
-    // Try to validate session
-    fetch('/api/auth/session', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((data) => {
-        if (data.user) {
-          setSessionToken(token);
-          if (data.user.themeColor) {
-            setThemeColor(data.user.themeColor);
-          }
-          if (data.user.language) {
-            setLanguage(data.user.language);
-          }
-        }
-      })
-      .catch(() => {
-        localStorage.removeItem('cr_session_token');
-      })
-      .finally(finish);
-  }, [setSessionToken, setThemeColor, setLanguage]);
+  }, []);
 
   // Periodically refresh session to keep it alive (every 24h)
   useEffect(() => {
@@ -180,6 +206,9 @@ function AppContent() {
   const handleAuthSuccess = useCallback(
     (token: string) => {
       setSessionToken(token);
+      setIsGuest(false);
+      localStorage.removeItem('cr_device_id');
+      setShowAuthScreen(false);
       fetch('/api/auth/session', {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -206,6 +235,8 @@ function AppContent() {
       }).catch(() => {});
     }
     localStorage.removeItem('cr_session_token');
+    localStorage.removeItem('cr_device_id');
+    setIsGuest(false);
     setSessionToken(null);
     setThemeColor('orange');
     queryClient.clear();
@@ -229,11 +260,21 @@ function AppContent() {
     );
   }
 
-  // Show auth screen if not authenticated
-  if (!isAuthenticated) {
+  // Show auth screen (not authenticated and no guest session)
+  if (!isAuthenticated && status !== 'loading') {
     return (
       <>
-        <AuthScreen onAuthSuccess={handleAuthSuccess} />
+        <AuthScreen onAuthSuccess={handleAuthSuccess} onStartAsGuest={handleStartAsGuest} />
+        <Toaster position="top-center" richColors />
+      </>
+    );
+  }
+
+  // Show auth screen overlay if user clicked "create account" while guest
+  if (showAuthScreen) {
+    return (
+      <>
+        <AuthScreen onAuthSuccess={handleAuthSuccess} onStartAsGuest={handleStartAsGuest} />
         <Toaster position="top-center" richColors />
       </>
     );
@@ -244,6 +285,26 @@ function AppContent() {
     <AppLayout>
       {/* Sync status banner */}
       <SyncStatusBar />
+
+      {/* Guest banner - encourage sign up for cross-device access */}
+      {isGuest && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-amber-800 text-xs">
+            <CloudOff className="h-4 w-4 shrink-0" />
+            <span className="font-medium">{t('guest.bannerMessage')}</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAuthScreen(true)}
+            className="shrink-0 text-amber-700 border-amber-300 hover:bg-amber-100 text-xs h-7 px-2.5 gap-1"
+          >
+            <UserPlus className="h-3 w-3" />
+            <span className="hidden sm:inline">{t('guest.createAccount')}</span>
+            <span className="sm:hidden">{t('guest.signUp')}</span>
+          </Button>
+        </div>
+      )}
 
       {/* Header with profile + logout + install */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white/95 backdrop-blur-sm border-b border-gray-200">
@@ -274,15 +335,28 @@ function AppContent() {
               <span className="text-xs">{t('offline.install') || 'Installer'}</span>
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-gray-500 hover:text-red-600 h-8 px-2"
-          >
-            <LogOut className="h-4 w-4 mr-1" />
-            <span className="text-xs">{t('common.logout')}</span>
-          </Button>
+          {/* Guest: show create account button */}
+          {isGuest ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAuthScreen(true)}
+              className="text-gray-500 hover:text-[var(--theme-primary)] h-8 px-2"
+            >
+              <UserPlus className="h-4 w-4 mr-1" />
+              <span className="text-xs">{t('guest.createAccount')}</span>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-gray-500 hover:text-red-600 h-8 px-2"
+            >
+              <LogOut className="h-4 w-4 mr-1" />
+              <span className="text-xs">{t('common.logout')}</span>
+            </Button>
+          )}
         </div>
       </header>
 

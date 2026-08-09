@@ -445,3 +445,40 @@ Stage Summary:
 - No server dependency for PDF: app can now deploy on ANY free platform (Render, Vercel, etc.)
 - Removed ~500MB of Chromium dependencies from deployment
 - Key files: src/lib/client-pdf.ts (new), src/components/compte-rendu-tab.tsx (updated), src/components/historique-tab.tsx (updated), install.sh (updated), Dockerfile (updated)
+
+---
+Task ID: 12
+Agent: Main
+Task: Make authentication optional with guest mode + Supabase PostgreSQL preparation
+
+Work Log:
+- Added `isGuest` Boolean field to User model in Prisma schema
+- Updated AuthUser interface to include `isGuest`
+- Updated getSession() to include `isGuest` in user select
+- Added `isGuest` and `setIsGuest` to Zustand app store
+- Created /api/auth/guest endpoint: creates guest user with `guest:{deviceId}` contact, auto-creates session, returns token
+- Updated page.tsx:
+  - Added guest auto-login flow: checks localStorage for device_id, auto-creates guest session on return
+  - Added `handleStartAsGuest()` and `handleGuestLogin()` functions
+  - Added guest banner (amber bar with CloudOff icon) when user is in guest mode
+  - Guest banner message: "Vos données sont seulement sur cet appareil. Créez un compte pour y accéder partout."
+  - Header shows "Créer un compte" button instead of "Déconnexion" for guests
+  - `showAuthScreen` state for overlaying auth when guest clicks create account
+  - Guest auto-login as returning visitor via device_id in localStorage
+- Updated auth-screen.tsx:
+  - Added `onStartAsGuest` optional prop
+  - Added "Continuer sans compte" button with separator between auth options
+- Added 5 FR/EN i18n keys for guest mode
+- Updated sw.js: separated non-GET and non-same-origin request handling for better POST passthrough
+- Prisma schema: added `isGuest` field, changed `contact` from @unique to @unique (guest contacts are `guest:{deviceId}`)
+- Fixed `isAuthenticated` reference error (was removed during refactoring)
+- Fixed `handleGuestLogin` ordering (must be defined before useEffect that uses it)
+- Build passes, lint clean (0 errors)
+
+Stage Summary:
+- Authentication is now optional: users can use the app as a guest without creating an account
+- Guest mode: device-based sessions, auto-login on return visits
+- Clear messaging: guest banner encourages account creation for cross-device access
+- All existing API routes work unchanged (requireAuth works for both real and guest users)
+- Schema is PostgreSQL-compatible (ready for Supabase migration)
+- Key files: prisma/schema.prisma (isGuest), src/app/api/auth/guest/route.ts (new), src/app/page.tsx (guest flow + banner), src/components/auth-screen.tsx (guest button), src/store/app-store.ts (isGuest state), src/lib/auth.ts (isGuest in AuthUser), src/lib/i18n.ts (guest translations), public/sw.js (POST handling fix)

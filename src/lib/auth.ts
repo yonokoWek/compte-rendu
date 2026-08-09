@@ -9,6 +9,7 @@ export interface AuthUser {
   verified: boolean;
   themeColor: string;
   language: string;
+  isGuest: boolean;
 }
 
 /**
@@ -26,7 +27,7 @@ export async function getSession(request: Request): Promise<AuthUser | null> {
 
     const session = await db.session.findUnique({
       where: { token },
-      include: { user: { select: { id: true, contact: true, contactType: true, name: true, verified: true, themeColor: true, language: true } } },
+      include: { user: { select: { id: true, contact: true, contactType: true, name: true, verified: true, themeColor: true, language: true, isGuest: true } } },
     });
 
     if (!session) return null;
