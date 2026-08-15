@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 
 export async function GET(request: Request) {
-  const auth = await requireAuth(request);
-  if (auth.response) return auth.response;
-
-  return NextResponse.json({ user: auth.user });
+  try {
+    const user = await getSession(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+    return NextResponse.json({ user });
+  } catch (error) {
+    console.error('[AUTH] Session check error:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
 }

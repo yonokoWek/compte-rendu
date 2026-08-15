@@ -1,12 +1,12 @@
-import { db } from '@/lib/db';
+import { db, isDatabaseConfigured } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 
 export async function PUT(request: Request) {
-  const auth = await requireAuth(request);
-  if (auth.response) return auth.response;
-
   try {
+    const auth = await requireAuth(request);
+    if (auth.response) return auth.response;
+
     const { themeColor, language } = await request.json();
 
     const data: Record<string, string> = {};
@@ -21,13 +21,16 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 });
     }
 
-    await db.user.update({
-      where: { id: auth.user.id },
-      data,
-    });
+    if (isDatabaseConfigured()) {
+      await db.user.update({
+        where: { id: auth.user.id },
+        data,
+      });
+    }
 
     return NextResponse.json({ success: true, ...data });
-  } catch {
+  } catch (error) {
+    console.error('[AUTH] Theme update error:', error);
     return NextResponse.json({ error: 'Échec de la mise à jour' }, { status: 500 });
   }
 }

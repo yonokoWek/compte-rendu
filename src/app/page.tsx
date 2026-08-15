@@ -15,7 +15,8 @@ import SyncStatusBar, { SyncIndicator } from '@/components/sync-status';
 import AuthScreen from '@/components/auth-screen';
 import { useAppStore } from '@/store/app-store';
 import { useT } from '@/lib/use-t';
-import { Loader2, LogOut, Download, UserPlus, CloudOff, Cloud } from 'lucide-react';
+import { Loader2, LogOut, Download, UserPlus, CloudOff, Cloud, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
 const queryClient = new QueryClient({
@@ -103,13 +104,22 @@ function AppContent() {
         body: JSON.stringify({ deviceId }),
       });
       const data = await res.json();
-      if (data.token) {
-        localStorage.setItem('cr_session_token', data.token);
-        setSessionToken(data.token);
-        setIsGuest(true);
+      if (res.status === 503) {
+        // Database not configured
+        toast.error('Serveur en cours de configuration. Veuillez réessayer dans quelques minutes.', { duration: 8000 });
+        return;
       }
+      if (!res.ok || !data.token) {
+        // Database error or other failure
+        toast.error('Impossible de se connecter au serveur. Veuillez réessayer.', { duration: 6000 });
+        return;
+      }
+      localStorage.setItem('cr_session_token', data.token);
+      setSessionToken(data.token);
+      setIsGuest(true);
     } catch (err) {
       console.error('Guest login failed:', err);
+      toast.error('Erreur de connexion au serveur. Vérifiez votre connexion internet.', { duration: 6000 });
     }
   };
 

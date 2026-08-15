@@ -37,7 +37,7 @@ export async function getSession(request: Request): Promise<AuthUser | null> {
 
     if (!session) return null;
     if (new Date() > session.expiresAt) {
-      await db.session.delete({ where: { id: session.id } });
+      await db.session.delete({ where: { id: session.id } }).catch(() => {});
       return null;
     }
 
@@ -48,7 +48,7 @@ export async function getSession(request: Request): Promise<AuthUser | null> {
       await db.session.update({
         where: { id: session.id },
         data: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
-      });
+      }).catch(() => {});
     }
 
     return session.user;

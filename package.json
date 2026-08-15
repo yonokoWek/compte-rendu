@@ -5,8 +5,8 @@
   "description": "Application de suivi des activités spirituelles - Compte Rendu",
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "bunx prisma@6 generate && next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ && mkdir -p .next/standalone/node_modules && cp -rL node_modules/pg .next/standalone/node_modules/pg 2>/dev/null; cp -rL node_modules/pg-protocol .next/standalone/node_modules/pg-protocol 2>/dev/null; cp -rL node_modules/pg-pool .next/standalone/node_modules/pg-pool 2>/dev/null; cp -rL node_modules/pg-cursor .next/standalone/node_modules/pg-cursor 2>/dev/null; cp -rL node_modules/pg-types .next/standalone/node_modules/pg-types 2>/dev/null; cp -rL node_modules/pg-packet-stream .next/standalone/node_modules/pg-packet-stream 2>/dev/null; cp -rL node_modules/pg-connection-string .next/standalone/node_modules/pg-connection-string 2>/dev/null; cp -rL node_modules/buffer-writer .next/standalone/node_modules/buffer-writer 2>/dev/null; cp -rL node_modules/object-assign .next/standalone/node_modules/object-assign 2>/dev/null; cp -rL node_modules/split2 .next/standalone/node_modules/split2 2>/dev/null; cp -rL node_modules/readable-stream .next/standalone/node_modules/readable-stream 2>/dev/null; cp -rL node_modules/.prisma .next/standalone/node_modules/.prisma 2>/dev/null; cp -rL node_modules/@prisma .next/standalone/node_modules/@prisma 2>/dev/null; echo 'Build complete'",
-    "start": "node .next/standalone/server.js",
+    "build": "npx prisma@6 generate && next build",
+    "start": "npx next start",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",

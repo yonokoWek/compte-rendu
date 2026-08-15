@@ -14,11 +14,10 @@ let prismaInstance: PrismaClient | undefined
 
 function createPrismaClient(): PrismaClient {
   if (!databaseUrl) {
-    // Return a dummy client that will fail gracefully on any operation
-    console.error('[DB] WARNING: DATABASE_URL is not set. All database operations will return errors.')
+    console.warn('[DB] WARNING: DATABASE_URL is not set. All database operations will fail gracefully.')
   }
   return new PrismaClient({
-    datasourceUrl: databaseUrl || 'postgresql://localhost:0/placeholder',
+    datasourceUrl: databaseUrl,
     log: process.env.NODE_ENV !== 'production' ? ['error', 'warn'] : [],
   })
 }
