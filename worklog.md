@@ -559,3 +559,25 @@ Stage Summary:
 - Standalone build now includes pg and Prisma client
 - User MUST set DATABASE_URL in Render dashboard (Environment tab)
 - Verified server handles requests correctly with PostgreSQL
+
+---
+Task ID: 5
+Agent: Main
+Task: Fix persistent 502 - use node runtime, resilient DB, health check
+
+Work Log:
+- Identified root cause: 'bun server.js' doesn't work reliably with Next.js standalone output
+- Changed start command from 'bun .next/standalone/server.js' to 'node .next/standalone/server.js'
+- Changed cp -r to cp -rL (follow symlinks) when copying pg modules
+- Added /api/health endpoint that returns {status:'ok'} without database
+- Added isDatabaseConfigured() to db.ts for graceful degradation
+- Updated auth.ts to check database availability before queries
+- Updated guest route to return 503 if DATABASE_URL not set
+- Removed tee server.log from start command (buffering issues)
+- Verified locally: health=200, guest auth=200 with valid token, page=200
+- Pushed commit 92bce64
+
+Stage Summary:
+- Standalone server now uses node (matching Next.js compiled output)
+- Server won't crash if DATABASE_URL is missing
+- Health endpoint always works
