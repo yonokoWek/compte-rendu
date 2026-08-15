@@ -269,38 +269,38 @@ export async function POST(request: Request) {
   table.main-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
   table.main-table th, table.main-table td { border: 1px solid #aaa; padding: 3px 4px; text-align: center; }
   table.main-table th { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 7.5px; text-transform: capitalize; }
-  .row-label { background-color: #2d5986; color: white; text-align: left; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; padding-left: 5px !important; }
-  .group-label { background-color: #14532d; color: white; text-align: left; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; text-transform: uppercase; letter-spacing: 0.5px; }
+  .row-label { background-color: #2d5986; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; }
+  .group-label { background-color: #14532d; color: white; text-align: center; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; text-transform: uppercase; letter-spacing: 0.5px; }
   .unit-col { width: 30px; background-color: #64748b; color: white; font-size: 7px; }
   .data-zebra { background-color: #f0f7ff; }
   .total-cell-inline { font-weight: bold; background-color: #e0eef9; text-align: center !important; }
 
   /* Total row */
-  .total-label { background-color: #1e3a5f; color: white; text-align: left; font-weight: bold; font-size: 7.5px; padding-left: 5px !important; }
+  .total-label { background-color: #1e3a5f; color: white; text-align: center; font-weight: bold; font-size: 7.5px; }
   .total-cell { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 9px; }
   .grand-total { background-color: #f59e0b; color: #1a1a1a; font-weight: bold; font-size: 10px; }
 
   /* Bible section */
-  .bible-header { background-color: #7c3aed; color: white; text-align: left; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; }
-  .bible-row-label { background-color: #8b5cf6; color: white; text-align: left; font-weight: bold; white-space: nowrap; font-size: 7.5px; padding-left: 5px !important; }
+  .bible-header { background-color: #7c3aed; color: white; text-align: center; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; }
+  .bible-row-label { background-color: #8b5cf6; color: white; text-align: center; font-weight: bold; white-space: nowrap; font-size: 7.5px; }
   .bible-unit { background-color: #64748b; color: white; font-size: 7px; }
 
   /* Finance table */
   table.finance-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
   table.finance-table th, table.finance-table td { border: 1px solid #aaa; padding: 3px 4px; }
-  .finance-header-green { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; text-align: left; padding-left: 5px !important; }
-  .finance-label { background-color: #166534; color: white; font-weight: bold; font-size: 7.5px; padding-left: 5px !important; text-align: left; }
-  .finance-label-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; font-size: 7.5px; padding-left: 5px !important; text-align: left; }
-  .finance-label-balance { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; padding-left: 5px !important; text-align: left; }
+  .finance-header-green { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; text-align: center; }
+  .finance-label { background-color: #166534; color: white; font-weight: bold; font-size: 7.5px; text-align: center; }
+  .finance-label-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; font-size: 7.5px; text-align: center; }
+  .finance-label-balance { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; text-align: center; }
   .total-cell-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; text-align: center !important; }
   .total-cell-balance { background-color: #22c55e; color: white; font-weight: bold; text-align: center !important; font-size: 9px; }
 
   /* Footer boxes */
   .footer-boxes { display: flex; gap: 8px; margin-top: 8px; }
   .footer-box { flex: 1; border: 1px solid #aaa; min-height: 50px; padding: 4px; }
-  .footer-box h4 { font-size: 8px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 3px; color: #1e3a5f; }
-  .footer-box .item { font-size: 7px; margin-bottom: 2px; color: #333; }
-  .footer-box .empty { font-size: 7px; color: #999; font-style: italic; }
+  .footer-box h4 { font-size: 8px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 3px; color: #1e3a5f; text-align: center; }
+  .footer-box .item { font-size: 7px; margin-bottom: 2px; color: #333; text-align: center; }
+  .footer-box .empty { font-size: 7px; color: #999; font-style: italic; text-align: center; }
 </style>
 </head>
 <body>
