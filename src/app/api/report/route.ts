@@ -121,9 +121,8 @@ export async function POST(request: Request) {
       return n.toLocaleString('fr-FR');
     }
 
-    // Organize categories: grouped first (with group headers), then ungrouped
+    // Organize categories: only grouped categories in the PDF
     const groupedCats = categories.filter(c => c.groupId);
-    const ungroupedCats = categories.filter(c => !c.groupId);
 
     let tableRows = '';
     let globalRowIndex = 0;
@@ -174,12 +173,6 @@ export async function POST(request: Request) {
       const groupName = group?.name || 'Groupe';
       tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">${groupName}</td></tr>`;
       for (const cat of cats) renderRow(cat);
-    }
-
-    // Render ungrouped categories
-    if (ungroupedCats.length > 0) {
-      tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">Sans groupe</td></tr>`;
-      for (const cat of ungroupedCats) renderRow(cat);
     }
 
     // Build bible reading row
