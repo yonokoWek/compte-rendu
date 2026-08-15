@@ -121,8 +121,9 @@ export async function POST(request: Request) {
       return n.toLocaleString('fr-FR');
     }
 
-    // Organize categories: only grouped categories in the PDF
+    // Organize categories
     const groupedCats = categories.filter(c => c.groupId);
+    const ungroupedCats = categories.filter(c => !c.groupId);
 
     let tableRows = '';
     let globalRowIndex = 0;
@@ -183,6 +184,29 @@ export async function POST(request: Request) {
         <td class="row-label">${groupName}</td>
         <td class="unit-col">${allMinutes ? 'min' : 'Part.'}</td>
         ${summedValues.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
+        <td class="total-cell-inline">${val(rowTotal)}</td>
+      </tr>`;
+      globalRowIndex++;
+    }
+
+    // Render UNGROUPED categories individually (one row each)
+    for (const cat of ungroupedCats) {
+      const values = getCellValues(cat.id);
+      const rowTotal = values.reduce((s, v) => s + v, 0);
+      const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
+
+      // Track personal time
+      if (cat.isPersonal && cat.unit === 'minutes') {
+        values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
+        personalGrandTotal += rowTotal;
+      }
+
+      const isZebra = globalRowIndex % 2 === 1;
+      tableRows += `
+      <tr>
+        <td class="row-label-ungrouped">${cat.name}</td>
+        <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
+        ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
         <td class="total-cell-inline">${val(rowTotal)}</td>
       </tr>`;
       globalRowIndex++;
@@ -263,13 +287,14 @@ export async function POST(request: Request) {
 
   /* Title */
   .title { text-align: center; font-size: 14px; font-weight: bold; text-decoration: underline; margin-bottom: 6px; color: #1e3a5f; }
-  .meta { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 10px; color: #333; }
+  .meta { display: flex; justify-content: center; gap: 40px; margin-bottom: 8px; font-size: 10px; color: #333; text-align: center; }
 
   /* Main table */
   table.main-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
   table.main-table th, table.main-table td { border: 1px solid #aaa; padding: 3px 4px; text-align: center; }
   table.main-table th { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 7.5px; text-transform: capitalize; }
   .row-label { background-color: #2d5986; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; }
+  .row-label-ungrouped { background-color: #475569; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; }
   .group-label { background-color: #14532d; color: white; text-align: center; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; text-transform: uppercase; letter-spacing: 0.5px; }
   .unit-col { width: 30px; background-color: #64748b; color: white; font-size: 7px; }
   .data-zebra { background-color: #f0f7ff; }
@@ -287,7 +312,7 @@ export async function POST(request: Request) {
 
   /* Finance table */
   table.finance-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
-  table.finance-table th, table.finance-table td { border: 1px solid #aaa; padding: 3px 4px; }
+  table.finance-table th, table.finance-table td { border: 1px solid #aaa; padding: 3px 4px; text-align: center; }
   .finance-header-green { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; text-align: center; }
   .finance-label { background-color: #166534; color: white; font-weight: bold; font-size: 7.5px; text-align: center; }
   .finance-label-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; font-size: 7.5px; text-align: center; }

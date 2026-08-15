@@ -633,3 +633,23 @@ Stage Summary:
 - Color scheme matches the app's current green/blue theme
 - Bible reading and finances are now included in the PDF
 - Render.com deployment should pick up these changes automatically
+---
+Task ID: 1
+Agent: Main Agent
+Task: PDF report - show ungrouped categories individually + grouped as group only + center all text
+
+Work Log:
+- Read the current report API route at src/app/api/report/route.ts
+- Added ungrouped categories rendering (one row per ungrouped category)
+- Added CSS class `.row-label-ungrouped` with slate gray background to distinguish from grouped rows
+- Both grouped and ungrouped categories contribute to personal time totals
+- Centered all text: meta section now uses `justify-content: center; gap: 40px; text-align: center`
+- Finance table cells now have `text-align: center`
+- All existing text-align properties were already center (row-label, group-label, etc.)
+
+Stage Summary:
+- Key change: Categories NOT in a group now render individually with their own row
+- Categories IN a group render as a single summed row per group (existing behavior)
+- All PDF text is now centered
+- Lint passes clean
+
