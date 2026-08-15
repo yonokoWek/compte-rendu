@@ -1,16 +1,15 @@
-// Next.js instrumentation - runs once at server startup
+// Next.js instrumentation - runs once at server startup (Node.js runtime only)
 // This adds global error handlers to prevent process crashes on Render.com
 
 export async function register() {
   // Prevent unhandled rejections from crashing the process
-  process.on('unhandledRejection', (reason: unknown, promise: unknown) => {
-    console.error('[INSTRUMENTATION] Unhandled rejection caught (process will NOT crash):', reason);
-    // Don't re-throw - let the application continue running
-  });
+  if (typeof process !== 'undefined' && typeof process.on === 'function') {
+    process.on('unhandledRejection', (reason: unknown) => {
+      console.error('[INSTRUMENTATION] Unhandled rejection caught:', reason);
+    });
 
-  // Prevent uncaught exceptions from crashing the process
-  process.on('uncaughtException', (err: Error) => {
-    console.error('[INSTRUMENTATION] Uncaught exception caught (process will NOT crash):', err);
-    // Don't re-throw - let the application continue running
-  });
+    process.on('uncaughtException', (err: Error) => {
+      console.error('[INSTRUMENTATION] Uncaught exception caught:', err);
+    });
+  }
 }
