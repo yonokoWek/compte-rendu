@@ -482,3 +482,26 @@ Stage Summary:
 - All existing API routes work unchanged (requireAuth works for both real and guest users)
 - Schema is PostgreSQL-compatible (ready for Supabase migration)
 - Key files: prisma/schema.prisma (isGuest), src/app/api/auth/guest/route.ts (new), src/app/page.tsx (guest flow + banner), src/components/auth-screen.tsx (guest button), src/store/app-store.ts (isGuest state), src/lib/auth.ts (isGuest in AuthUser), src/lib/i18n.ts (guest translations), public/sw.js (POST handling fix)
+---
+Task ID: 4
+Agent: Main
+Task: Fix mobile performance + real-time entry updates
+
+Work Log:
+- Identified root causes: no optimistic updates, full re-render per keystroke, sticky column breaking mobile overflow
+- Rewrote compte-rendu-tab.tsx with optimistic updates (localEntryMap state)
+- Added debounced backend save (800ms) to avoid API spam
+- Created memoized CellInput component (React.memo) to prevent sibling re-renders
+- Removed sticky left column that caused mobile overflow issues
+- Removed unused "Min" column for cleaner mobile layout
+- Reduced sizes: text-[11px], compact padding, smaller inputs
+- Removed transition-colors from inputs (causes layout thrashing on mobile)
+- Optimized app-layout.tsx: safe-area-inset-bottom, compact nav, touch feedback
+- Set staleTime: 5min for categories/profile, 10s for entries
+- Memoized themeStyle in app-layout
+
+Stage Summary:
+- Entries now update INSTANTLY on input without page reload
+- Mobile performance improved: less re-renders, smaller DOM
+- Table displays correctly on phones
+- Pushed to GitHub (commit fac3bb0)
