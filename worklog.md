@@ -539,3 +539,23 @@ Stage Summary:
 - Render 502 should be resolved: schema, Dockerfile, and dependencies all aligned for PostgreSQL
 - Mobile: fewer refetches, better touch targets, responsive table sizing
 - Norme: values now persist in local state without flashing
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix Render 502 - standalone build missing pg module, DATABASE_URL not set
+
+Work Log:
+- Diagnosed: Render uses native build (not Docker), serverExternalPackages makes pg excluded from standalone trace
+- Updated package.json build script: added prisma generate + copy all pg/* modules to .next/standalone/node_modules/
+- Updated next.config.ts: moved outputFileTracingIncludes from experimental to top level, included pg + prisma
+- Updated db.ts: removed query logging in production, added DATABASE_URL safety check
+- Tested standalone server locally: HTTP 200 for page, HTTP 200 for API with valid token
+- Confirmed pg, .prisma, @prisma are present in standalone output after build
+- Discovered .env is in .gitignore so DATABASE_URL never reached Render
+- Pushed 2 commits: 0660f38 (standalone fix) and 3599b37 (safety check)
+
+Stage Summary:
+- Standalone build now includes pg and Prisma client
+- User MUST set DATABASE_URL in Render dashboard (Environment tab)
+- Verified server handles requests correctly with PostgreSQL
