@@ -121,16 +121,29 @@ export async function POST(request: Request) {
       return n.toLocaleString('fr-FR');
     }
 
-    // Organize categories
-    const groupedCats = categories.filter(c => c.groupId);
-    const ungroupedCats = categories.filter(c => !c.groupId);
+    // Organize categories respecting pdfDisplay settings
+    // "hidden" = never shown on PDF
+    // "show" = shown individually (even if in a group, shown as its own row)
+    // "group_only" = only counted in group total, not shown individually
+    // Default: "show"
+    const hiddenCats = new Set(categories.filter(c => c.pdfDisplay === 'hidden').map(c => c.id));
+    const showIndividualCats = new Set(categories.filter(c => c.pdfDisplay === 'show').map(c => c.id));
+    const groupOnlyCats = new Set(categories.filter(c => c.pdfDisplay === 'group_only').map(c => c.id));
+
+    // Grouped categories: only those marked as "group_only" or in a group
+    // The group row shows the sum of ALL non-hidden categories in that group
+    const groupedCats = categories.filter(c => c.groupId && !hiddenCats.has(c.id));
+    // Ungrouped categories that should be shown individually
+    const ungroupedCats = categories.filter(c => !c.groupId && showIndividualCats.has(c.id));
+    // Grouped categories that should be shown individually (pdfDisplay === "show" AND in a group)
+    const groupIndividualCats = categories.filter(c => c.groupId && showIndividualCats.has(c.id));
 
     let tableRows = '';
     let globalRowIndex = 0;
     const personalTotalPerCol: number[] = columns.map(() => 0);
     let personalGrandTotal = 0;
 
-    // Render one row per GROUP (sum of all sub-categories)
+    // Render one row per GROUP (sum of all sub-categories except hidden ones)
     const groupsMap = new Map(groups.map(g => [g.id, g]));
     const groupedByGroup = new Map<string, typeof groupedCats>();
     for (const cat of groupedCats) {
@@ -178,10 +191,12 @@ export async function POST(request: Request) {
         personalGrandTotal += rowTotal;
       }
 
+      // Use custom color from the first category that has one, or default
+      const groupColor = cats.find(c => c.pdfColor)?.pdfColor || '#2d5986';
       const isZebra = globalRowIndex % 2 === 1;
       tableRows += `
       <tr>
-        <td class="row-label">${groupName}</td>
+        <td class="row-label" style="background-color: ${groupColor};">${groupName}</td>
         <td class="unit-col">${allMinutes ? 'min' : 'Part.'}</td>
         ${summedValues.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
         <td class="total-cell-inline">${val(rowTotal)}</td>
@@ -189,7 +204,7 @@ export async function POST(request: Request) {
       globalRowIndex++;
     }
 
-    // Render UNGROUPED categories individually (one row each)
+    // Render UNGROUPED categories that should be shown individually
     for (const cat of ungroupedCats) {
       const values = getCellValues(cat.id);
       const rowTotal = values.reduce((s, v) => s + v, 0);
@@ -201,10 +216,34 @@ export async function POST(request: Request) {
         personalGrandTotal += rowTotal;
       }
 
+      const catColor = cat.pdfColor || '#475569';
       const isZebra = globalRowIndex % 2 === 1;
       tableRows += `
       <tr>
-        <td class="row-label-ungrouped">${cat.name}</td>
+        <td class="row-label-ungrouped" style="background-color: ${catColor};">${cat.name}</td>
+        <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
+        ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
+        <td class="total-cell-inline">${val(rowTotal)}</td>
+      </tr>`;
+      globalRowIndex++;
+    }
+
+    // Render GROUPED categories that should also be shown individually (pdfDisplay = "show")
+    for (const cat of groupIndividualCats) {
+      const values = getCellValues(cat.id);
+      const rowTotal = values.reduce((s, v) => s + v, 0);
+      const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
+
+      if (cat.isPersonal && cat.unit === 'minutes') {
+        values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
+        personalGrandTotal += rowTotal;
+      }
+
+      const catColor = cat.pdfColor || '#475569';
+      const isZebra = globalRowIndex % 2 === 1;
+      tableRows += `
+      <tr>
+        <td class="row-label-ungrouped" style="background-color: ${catColor};">${cat.name}</td>
         <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
         ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
         <td class="total-cell-inline">${val(rowTotal)}</td>

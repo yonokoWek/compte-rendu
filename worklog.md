@@ -653,3 +653,34 @@ Stage Summary:
 - All PDF text is now centered
 - Lint passes clean
 
+---
+Task ID: 2
+Agent: Main Agent
+Task: Add PDF display options (show/group_only/hidden) and color picker to activity categories
+
+Work Log:
+- Added `pdfDisplay` (String, default "show") and `pdfColor` (String, default "") fields to ActivityCategory in Prisma schema
+- Pushed schema to Supabase PostgreSQL with `prisma db push`
+- Updated /api/categories route POST and PUT to support pdfDisplay and pdfColor fields
+- Updated activities-tab.tsx frontend:
+  - Added Category interface fields: pdfDisplay and pdfColor
+  - Added `updateCategoryPdf` mutation (PUT to /api/categories)
+  - Added PDF display dropdown per category: "Affiché" / "Groupe seul" / "Masqué"
+  - Added color picker input per category with custom hex color
+  - Color dot indicator shown next to category name when a color is set
+  - Added Lucide icons: FileText, Eye, EyeOff, Palette
+- Updated /api/report/route.ts PDF generation:
+  - Categories with pdfDisplay="hidden" are completely excluded from PDF
+  - Categories with pdfDisplay="group_only" contribute to group totals but not shown individually
+  - Categories with pdfDisplay="show" are shown as individual rows (even if in a group)
+  - Ungrouped categories with pdfDisplay="show" shown individually
+  - Custom pdfColor is applied as inline background-color on row labels
+  - Groups use the first category color found, or default blue
+- All text remains centered in PDF
+
+Stage Summary:
+- New schema fields: ActivityCategory.pdfDisplay, ActivityCategory.pdfColor
+- Frontend: Each category now has a display mode dropdown and color picker
+- PDF: Fully respects per-category display settings and custom colors
+- Lint passes clean, no browser errors
+

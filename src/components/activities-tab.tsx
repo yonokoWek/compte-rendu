@@ -34,6 +34,10 @@ import {
   Timer,
   TrendingUp,
   Settings,
+  FileText,
+  Eye,
+  EyeOff,
+  Palette,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/api';
@@ -46,6 +50,8 @@ interface Category {
   sortOrder: number;
   isPersonal: boolean;
   icon: string;
+  pdfDisplay: string;  // "show" | "group_only" | "hidden"
+  pdfColor: string;     // hex color
   groupId: string | null;
   group: { id: string; name: string } | null;
 }
@@ -138,6 +144,12 @@ export default function ActivitiesTab() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Activité déplacée'); },
   });
 
+  const updateCategoryPdf = useMutation({
+    mutationFn: (data: { type: 'category'; id: string; pdfDisplay: string; pdfColor: string }) =>
+      authFetch('/api/categories', { method: 'PUT', body: JSON.stringify(data) }).then((r) => r.json()),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Affichage PDF mis à jour'); },
+  });
+
   // === Custom Activity Queries & Mutations ===
   const { data: activities = [] } = useQuery<CustomActivity[]>({
     queryKey: ['activities'],
@@ -213,7 +225,7 @@ export default function ActivitiesTab() {
           <div className="space-y-4">
             <p className="text-xs text-gray-500">
               Gérez les groupes et activités du compte rendu.
-              Seules les activités groupées apparaîtront sur le PDF.
+              Utilisez les options PDF pour contrôler l'affichage de chaque activité.
             </p>
 
             {/* Create group */}
@@ -293,48 +305,128 @@ export default function ActivitiesTab() {
               </CardContent>
             </Card>
 
-            {/* All categories with assign/delete */}
+            {/* All categories with assign/delete + PDF options */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-gray-700">Toutes les activités</h4>
-              <div className="max-h-96 overflow-y-auto space-y-1">
-                {categories.map((cat) => (
-                  <div key={cat.id} className="flex items-center justify-between p-2 rounded-lg border border-gray-100 bg-white hover:bg-gray-50">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{cat.name}</p>
-                      <p className="text-[10px] text-gray-400">
-                        {cat.unit === 'minutes' ? 'min' : 'Part.'}
-                        {cat.isPersonal ? ' • Personnel' : ''}
-                        {cat.group ? ` • 📁 ${cat.group.name}` : ' • Non groupé'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 text-gray-400">
-                            <ArrowRight className="h-3 w-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {groups.map((g) => (
-                            <DropdownMenuItem key={g.id} onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: g.id })}>
-                              <FolderOpen className="h-3 w-3 mr-2" />
-                              {g.name}
-                              {cat.groupId === g.id && ' ✓'}
+              <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5" />
+                Toutes les activités
+              </h4>
+              <div className="max-h-[500px] overflow-y-auto space-y-1 pr-1">
+                {categories.map((cat) => {
+                  const displayLabel =
+                    cat.pdfDisplay === 'show' ? 'Affiché' :
+                    cat.pdfDisplay === 'group_only' ? 'Groupe seul' :
+                    'Masqué';
+                  const displayIcon = cat.pdfDisplay === 'hidden' ? EyeOff : Eye;
+                  const DisplayIcon = displayIcon;
+                  return (
+                  <div key={cat.id} className="rounded-lg border border-gray-100 bg-white hover:bg-gray-50">
+                    <div className="flex items-center justify-between p-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {cat.pdfColor && (
+                            <span className="inline-block w-2.5 h-2.5 rounded-full border border-gray-200 shrink-0" style={{ backgroundColor: cat.pdfColor }} />
+                          )}
+                          <p className="text-xs font-medium truncate">{cat.name}</p>
+                        </div>
+                        <p className="text-[10px] text-gray-400">
+                          {cat.unit === 'minutes' ? 'min' : 'Part.'}
+                          {cat.isPersonal ? ' • Personnel' : ''}
+                          {cat.group ? ` • 📁 ${cat.group.name}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 text-gray-400">
+                              <ArrowRight className="h-3 w-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {groups.map((g) => (
+                              <DropdownMenuItem key={g.id} onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: g.id })}>
+                                <FolderOpen className="h-3 w-3 mr-2" />
+                                {g.name}
+                                {cat.groupId === g.id && ' ✓'}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })}>
+                              <X className="h-3 w-3 mr-2" />
+                              Retirer du groupe
                             </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })}>
-                            <X className="h-3 w-3 mr-2" />
-                            Retirer du groupe
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => { deleteCategory.mutate(cat.id); toast.success('Activité supprimée'); }}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => { deleteCategory.mutate(cat.id); toast.success('Activité supprimée'); }}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    {/* PDF Display & Color row */}
+                    <div className="flex items-center gap-2 px-2 pb-2 border-t border-gray-50">
+                      <Select
+                        value={cat.pdfDisplay}
+                        onValueChange={(val) =>
+                          updateCategoryPdf.mutate({
+                            type: 'category',
+                            id: cat.id,
+                            pdfDisplay: val,
+                            pdfColor: cat.pdfColor,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-7 text-[10px] flex-1 min-w-0">
+                          <DisplayIcon className="h-3 w-3 mr-1" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="show">
+                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> Affiché</span>
+                          </SelectItem>
+                          <SelectItem value="group_only">
+                            <span className="flex items-center gap-1"><FolderOpen className="h-3 w-3" /> Groupe seul</span>
+                          </SelectItem>
+                          <SelectItem value="hidden">
+                            <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> Masqué</span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Palette className="h-3 w-3 text-gray-400" />
+                        <input
+                          type="color"
+                          value={cat.pdfColor || '#1e3a5f'}
+                          onChange={(e) =>
+                            updateCategoryPdf.mutate({
+                              type: 'category',
+                              id: cat.id,
+                              pdfDisplay: cat.pdfDisplay,
+                              pdfColor: e.target.value,
+                            })
+                          }
+                          className="w-6 h-6 rounded cursor-pointer border border-gray-200 p-0 bg-transparent"
+                          title="Couleur PDF"
+                        />
+                        {cat.pdfColor && (
+                          <button
+                            onClick={() =>
+                              updateCategoryPdf.mutate({
+                                type: 'category',
+                                id: cat.id,
+                                pdfDisplay: cat.pdfDisplay,
+                                pdfColor: '',
+                              })
+                            }
+                            className="text-gray-300 hover:text-gray-500"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

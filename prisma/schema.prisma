@@ -75,6 +75,8 @@ model ActivityCategory {
   sortOrder   Int          @default(0)
   isPersonal  Boolean      @default(true)
   icon        String       @default("")
+  pdfDisplay  String       @default("show")      // "show" | "group_only" | "hidden"
+  pdfColor    String       @default("")           // hex color e.g. "#1e3a5f"
   groupId     String?
   userId      String
   group       ActivityGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
