@@ -6,15 +6,25 @@ const globalForPrisma = globalThis as unknown as {
 
 const databaseUrl = process.env.DATABASE_URL
 
-if (!databaseUrl) {
-  console.error('[DB] WARNING: DATABASE_URL is not set. Database operations will fail.')
+export function isDatabaseConfigured(): boolean {
+  return !!databaseUrl
 }
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    datasourceUrl: databaseUrl,
-    log: process.env.NODE_ENV !== 'production' ? ['error', 'warn'] : ['error'],
-  })
+let prismaInstance: PrismaClient | undefined
 
-if (!globalForPrisma.prisma) globalForPrisma.prisma = db
+function createPrismaClient(): PrismaClient {
+  if (!databaseUrl) {
+    // Return a dummy client that will fail gracefully on any operation
+    console.error('[DB] WARNING: DATABASE_URL is not set. All database operations will return errors.')
+  }
+  return new PrismaClient({
+    datasourceUrl: databaseUrl || 'postgresql://localhost:0/placeholder',
+    log: process.env.NODE_ENV !== 'production' ? ['error', 'warn'] : [],
+  })
+}
+
+export const db = globalForPrisma.prisma ?? createPrismaClient()
+
+if (!globalForPrisma.prisma) {
+  globalForPrisma.prisma = db
+}

@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, isDatabaseConfigured } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export interface AuthUser {
@@ -25,6 +25,11 @@ export async function getSession(request: Request): Promise<AuthUser | null> {
     const token = authHeader.slice(7);
     if (!token) return null;
 
+    if (!isDatabaseConfigured()) {
+      console.error('[AUTH] Database not configured, cannot validate session');
+      return null;
+    }
+
     const session = await db.session.findUnique({
       where: { token },
       include: { user: { select: { id: true, contact: true, contactType: true, name: true, verified: true, themeColor: true, language: true, isGuest: true } } },
@@ -42,7 +47,7 @@ export async function getSession(request: Request): Promise<AuthUser | null> {
     if (session.expiresAt < thirtyDaysFromNow) {
       await db.session.update({
         where: { id: session.id },
-        data: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) }, // Extend to 1 year from now
+        data: { expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
       });
     }
 
@@ -66,7 +71,6 @@ export async function requireAuth(request: Request): Promise<{ user: AuthUser; r
 
 /**
  * Normalize a phone number for consistent storage.
- * Removes spaces/dashes, strips leading +, replaces leading 0 with DRC country code 243.
  */
 export function normalizePhone(contact: string): string {
   let phone = contact.replace(/[\s\-]/g, '');
@@ -96,12 +100,11 @@ export function generateToken(): string {
 
 /**
  * Create a session for a user, returns the session token.
- * Session expires in 1 year (365 days) for persistent login.
  */
 export async function createSession(userId: string): Promise<string> {
   const token = generateToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 365); // 365 days for persistent login
+  expiresAt.setDate(expiresAt.getDate() + 365);
 
   await db.session.create({
     data: { token, userId, expiresAt },

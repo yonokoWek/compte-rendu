@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, isDatabaseConfigured } from '@/lib/db';
 import { generateToken } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
-    // Get device ID from client (stored in localStorage)
+    if (!isDatabaseConfigured()) {
+      return NextResponse.json(
+        { error: 'Database not configured. Please set DATABASE_URL environment variable.' },
+        { status: 503 }
+      );
+    }
+
     const { deviceId } = await request.json();
 
     if (!deviceId) {
@@ -17,7 +23,6 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
-      // User exists — check for existing session
       const existingSession = await db.session.findFirst({
         where: { userId: existingUser.id, expiresAt: { gt: new Date() } },
       });
@@ -26,7 +31,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ token: existingSession.token, isGuest: true });
       }
 
-      // Create new session
       const token = generateToken();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 365);
@@ -46,13 +50,12 @@ export async function POST(request: Request) {
         name: '',
         pin: '',
         isGuest: true,
-        verified: true, // Guests don't need verification
+        verified: true,
         themeColor: 'orange',
         language: 'fr',
       },
     });
 
-    // Create session
     const token = generateToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 365);
