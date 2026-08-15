@@ -129,30 +129,7 @@ export async function POST(request: Request) {
     const personalTotalPerCol: number[] = columns.map(() => 0);
     let personalGrandTotal = 0;
 
-    // Helper to render a row
-    function renderRow(cat: typeof categories[0]) {
-      const values = getCellValues(cat.id);
-      const rowTotal = values.reduce((s, v) => s + v, 0);
-
-      if (cat.isPersonal && cat.unit === 'minutes') {
-        values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
-        personalGrandTotal += rowTotal;
-      }
-
-      const isZebra = globalRowIndex % 2 === 1;
-      const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
-
-      tableRows += `
-      <tr>
-        <td class="row-label">${cat.name}</td>
-        <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
-        ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
-        <td class="total-cell-inline">${val(rowTotal)}</td>
-      </tr>`;
-      globalRowIndex++;
-    }
-
-    // Render grouped categories with group headers
+    // Render one row per GROUP (sum of all sub-categories)
     const groupsMap = new Map(groups.map(g => [g.id, g]));
     const groupedByGroup = new Map<string, typeof groupedCats>();
     for (const cat of groupedCats) {
@@ -171,8 +148,44 @@ export async function POST(request: Request) {
       const cats = groupedByGroup.get(gId)!;
       const group = groupsMap.get(gId);
       const groupName = group?.name || 'Groupe';
-      tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">${groupName}</td></tr>`;
-      for (const cat of cats) renderRow(cat);
+
+      // Sum values across all sub-categories for each column
+      const summedValues: number[] = columns.map((col) => {
+        if (isSingleWeek) {
+          return cats.reduce((s, cat) => s + (entryMap[`${col}_${cat.id}`] || 0), 0);
+        }
+        const [wStart, wEnd] = col.split('_');
+        let total = 0;
+        const days = eachDayOfInterval({ start: new Date(wStart), end: new Date(wEnd) });
+        for (const day of days) {
+          for (const cat of cats) {
+            total += entryMap[`${format(day, 'yyyy-MM-dd')}_${cat.id}`] || 0;
+          }
+        }
+        return total;
+      });
+      const rowTotal = summedValues.reduce((s, v) => s + v, 0);
+
+      // Determine unit: if ALL cats are minutes, use minutes; otherwise use count
+      const allMinutes = cats.every(c => c.unit === 'minutes');
+      const val = allMinutes ? fmtMin : fmtCount;
+
+      // Track personal time
+      const hasPersonalMinutes = cats.some(c => c.isPersonal && c.unit === 'minutes');
+      if (hasPersonalMinutes) {
+        summedValues.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
+        personalGrandTotal += rowTotal;
+      }
+
+      const isZebra = globalRowIndex % 2 === 1;
+      tableRows += `
+      <tr>
+        <td class="row-label">${groupName}</td>
+        <td class="unit-col">${allMinutes ? 'min' : 'Part.'}</td>
+        ${summedValues.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
+        <td class="total-cell-inline">${val(rowTotal)}</td>
+      </tr>`;
+      globalRowIndex++;
     }
 
     // Build bible reading row
