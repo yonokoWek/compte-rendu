@@ -5,8 +5,8 @@
   "description": "Application de suivi des activités spirituelles - Compte Rendu",
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "npx prisma@6 generate && next build",
-    "start": "npx next start",
+    "build": "bunx prisma generate && next build",
+    "start": "bunx next start",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
