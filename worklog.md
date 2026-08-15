@@ -607,3 +607,29 @@ Stage Summary:
 - 9 files changed, instrumentation.ts created
 - Server now survives database errors without crashing
 - IMPORTANT: User must set DATABASE_URL in Render dashboard environment variables
+
+---
+Task ID: 6
+Agent: Main
+Task: Fix PDF report to include ALL data and match app style
+
+Work Log:
+- Analyzed user's reference PDF (Document(1).PDF.pdf) via VLM - identified expected layout with navy headers, green groups, purple bible section
+- Analyzed user screenshots showing app has green-themed data table with all categories, but PDF only showed grouped categories with old orange theme
+- Root cause: report API filtered `groupId: { not: null }` - only grouped categories were included
+- Rewrote entire report API:
+  - Changed query to fetch ALL categories (grouped + ungrouped)
+  - Organized by group (with headers) then "Sans groupe" section for ungrouped
+  - Added Bible reading section (purple/violet theme) with chapter counts per day
+  - Added Finances section (green theme) with Entrées/Sorties/Solde
+  - Updated color scheme: navy blue (#1e3a5f) headers, forest green (#14532d) group labels, purple (#7c3aed) bible section
+  - Grand total in yellow highlight (#f59e0b)
+  - Footer boxes for books, prayer needs, advice
+- Fixed instrumentation.ts: added typeof guard for process.on (Edge Runtime compatibility)
+- Pushed all changes to GitHub
+
+Stage Summary:
+- PDF now shows ALL categories the user has filled in, not just grouped ones
+- Color scheme matches the app's current green/blue theme
+- Bible reading and finances are now included in the PDF
+- Render.com deployment should pick up these changes automatically
