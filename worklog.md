@@ -505,3 +505,37 @@ Stage Summary:
 - Mobile performance improved: less re-renders, smaller DOM
 - Table displays correctly on phones
 - Pushed to GitHub (commit fac3bb0)
+
+---
+Task ID: 3
+Agent: Main
+Task: Fix Render 502 error (PostgreSQL migration) + mobile performance + norme real-time update
+
+Work Log:
+- Diagnosed 502: schema.prisma had provider="sqlite" but Render DATABASE_URL pointed to Supabase PostgreSQL
+- Installed pg package (native PostgreSQL driver)
+- Changed prisma/schema.prisma from sqlite to postgresql
+- Updated next.config.ts with serverExternalPackages: ["pg"]
+- Rewrote Dockerfile for PostgreSQL: added pg runtime modules, removed SQLite-specific config
+- Updated docker-entrypoint.sh for Supabase schema sync
+- Set .env DATABASE_URL to Supabase PostgreSQL
+- Generated Prisma client with prisma@6 and pushed schema to Supabase
+- Fixed mobile performance issues:
+  - Increased global QueryClient staleTime from 30s to 5 min
+  - Added 5s debounce to visibility/online event handlers
+  - Changed from invalidateQueries() to refetchQueries({type:'active'})
+  - Increased entries query staleTime from 10s to 60s
+  - Removed min-w-[500px] from table for natural mobile sizing
+  - Increased touch targets: h-11 on mobile (44px), h-7 on desktop
+  - Reduced activity column min-width from 100px to 70px on mobile
+- Fixed norme real-time update:
+  - Removed invalidateQueries().then() pattern that caused values to flash back
+  - Kept optimistic updates in localEntryMap without premature clearing
+  - The 800ms debounced backend save is preserved
+- Pushed 2 commits to GitHub: a411be5 (PostgreSQL fix) and 348c06e (mobile+norme fix)
+- Verified server starts and serves 200 OK with full page content (27KB)
+
+Stage Summary:
+- Render 502 should be resolved: schema, Dockerfile, and dependencies all aligned for PostgreSQL
+- Mobile: fewer refetches, better touch targets, responsive table sizing
+- Norme: values now persist in local state without flashing
