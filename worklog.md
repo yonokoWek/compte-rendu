@@ -581,3 +581,29 @@ Stage Summary:
 - Standalone server now uses node (matching Next.js compiled output)
 - Server won't crash if DATABASE_URL is missing
 - Health endpoint always works
+
+---
+Task ID: 5
+Agent: Main
+Task: Fix Render.com 502 error - root cause analysis and comprehensive fix
+
+Work Log:
+- Discovered ROOT CAUSE: next.config.ts had `output: "standalone"` removed (comment: "use next start directly") but package.json still referenced `.next/standalone/server.js` which never existed
+- Fixed package.json: changed `start` to `npx next start` and simplified `build` to `npx prisma@6 generate && next build`
+- Fixed .env: changed DATABASE_URL from SQLite (file:db/custom.db) to PostgreSQL (Supabase)
+- Created `src/instrumentation.ts`: Next.js instrumentation hook with `unhandledRejection` and `uncaughtException` handlers to prevent process crashes
+- Fixed `src/app/api/auth/session/route.ts`: wrapped in try/catch
+- Fixed `src/app/api/auth/logout/route.ts`: wrapped in try/catch, added db check
+- Fixed `src/app/api/auth/theme/route.ts`: added db check before update
+- Enhanced `src/app/api/route.ts`: health check now includes database status
+- Updated `src/lib/auth.ts`: added .catch() on session auto-extend and delete operations
+- Updated `src/lib/db.ts`: added undefined check with warning
+- Updated `src/app/page.tsx`: handle 503 and 500 from guest login with toast error messages
+- Verified via curl: server handles all API calls without crashing, returns proper error responses
+- Pushed all fixes to GitHub: yonokoWek/compte-rendu main branch
+
+Stage Summary:
+- Root cause of 502 was mismatched next.config.ts (no standalone) and package.json (referencing standalone)
+- 9 files changed, instrumentation.ts created
+- Server now survives database errors without crashing
+- IMPORTANT: User must set DATABASE_URL in Render dashboard environment variables
