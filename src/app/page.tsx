@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30,
+      staleTime: 1000 * 60 * 5, // 5 minutes - reduce unnecessary refetches
       retry: 1,
     },
   },
@@ -173,34 +173,54 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // Handle visibility change - refresh session when tab becomes active
+  // Handle visibility change - refresh session + refetch queries (debounced 5s)
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        const token = localStorage.getItem('cr_session_token');
-        if (!token) return;
-        fetch('/api/auth/session', {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => {});
-      }
+      if (document.visibilityState !== 'visible') return;
+
+      // Refresh session immediately
+      const token = localStorage.getItem('cr_session_token');
+      if (!token) return;
+      fetch('/api/auth/session', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+
+      // Debounce query refetch to avoid burst of requests
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        queryClient.refetchQueries({ type: 'active' });
+      }, 5000);
     };
 
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, [isAuthenticated]);
 
-  // Handle online/offline - invalidate queries when back online
+  // Handle online/offline - refetch active queries when back online (debounced 5s)
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handleOnline = () => {
-      if (isAuthenticated) {
-        queryClient.invalidateQueries();
-      }
+      if (!isAuthenticated) return;
+      // Debounce to avoid burst of requests
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        queryClient.refetchQueries({ type: 'active' });
+      }, 5000);
     };
 
     window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, [isAuthenticated]);
 
   const handleAuthSuccess = useCallback(

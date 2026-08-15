@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { format, eachDayOfInterval, getDay, differenceInCalendarDays } from 'date-fns';
 import { useAppStore, DAY_NAMES_SHORT, formatMinutes, getDaysInRange, getWeeksInRange } from '@/store/app-store';
 import { Card, CardContent } from '@/components/ui/card';
@@ -76,7 +76,7 @@ const CellInput = React.memo(function CellInput({
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder="0"
-      className="w-11 h-7 text-center text-xs bg-transparent border border-transparent rounded focus:border-[var(--theme-primary)] focus:bg-[var(--theme-primary-light)] focus:outline-none"
+      className="w-11 h-11 sm:h-7 text-center text-xs bg-transparent border border-transparent rounded focus:border-[var(--theme-primary)] focus:bg-[var(--theme-primary-light)] focus:outline-none"
     />
   );
 });
@@ -89,7 +89,6 @@ export default function CompteRenduTab() {
   const prevPeriod = useAppStore((s) => s.prevPeriod);
   const goToCurrentPeriod = useAppStore((s) => s.goToCurrentPeriod);
   const setProfileDialogOpen = useAppStore((s) => s.setProfileDialogOpen);
-  const queryClient = useQueryClient();
 
   // Fetch categories with groups
   const { data: catData } = useQuery<{
@@ -109,7 +108,7 @@ export default function CompteRenduTab() {
       authFetch(
         `/api/entries?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`
       ).then((r) => r.json()),
-    staleTime: 1000 * 10, // 10s stale time to reduce refetches
+    staleTime: 1000 * 60, // 60s stale time to reduce mobile refetches
   });
 
   // Fetch profile
@@ -159,20 +158,16 @@ export default function CompteRenduTab() {
       authFetch('/api/entries', {
         method: 'POST',
         body: JSON.stringify({ date: dateKey, categoryId, value: numValue }),
-      }).then(() => {
-        // On success, refetch in background and clear local override
-        queryClient.invalidateQueries({ queryKey: ['entries'] }).then(() => {
-          setLocalEntryMap((prev) => {
-            const next = { ...prev };
-            delete next[`${dateKey}_${categoryId}`];
-            return next;
-          });
-        });
       }).catch(() => {
         toast.error('Erreur de sauvegarde');
       });
+      // Note: we do NOT invalidateQueries or clear localEntryMap here.
+      // invalidateQueries resolves immediately (just marks stale), so clearing
+      // localEntryMap in .then() would flash old values before refetch completes.
+      // The optimistic value stays in localEntryMap; the next natural staleTime
+      // refetch will update server data and localEntryMap will be overwritten naturally.
     }, 800);
-  }, [queryClient]);
+  }, []);
 
   // Calculate columns (memoized)
   const { columns, isSingleWeek } = useMemo(() => {
@@ -306,10 +301,10 @@ export default function CompteRenduTab() {
       {/* Main data table - mobile optimized */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto -mx-0">
-          <table className="w-full text-[11px] sm:text-xs border-collapse min-w-[500px]">
+          <table className="w-full text-[11px] sm:text-xs border-collapse" style={{ minWidth: 0 }}>
             <thead>
               <tr className="sticky top-0 z-10">
-                <th className="bg-[var(--theme-primary)] text-white px-1.5 sm:px-2 py-1.5 text-left font-semibold text-[11px] sm:text-xs min-w-[100px] sm:min-w-[130px]">Activité</th>
+                <th className="bg-[var(--theme-primary)] text-white px-1.5 sm:px-2 py-1.5 text-left font-semibold text-[11px] sm:text-xs min-w-[70px] sm:min-w-[130px]">Activité</th>
                 {columns.map((col) => (
                   <th key={col.key} className="bg-[var(--theme-primary)] text-white px-1 sm:px-2 py-1.5 text-center font-semibold text-[11px] sm:text-xs min-w-[40px] sm:min-w-[55px]">{col.label}</th>
                 ))}
@@ -339,14 +334,14 @@ export default function CompteRenduTab() {
                         </tr>
                         {cats.map((cat, rowIndex) => (
                           <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-[var(--theme-primary-light)]/30'}>
-                            <td className="px-1.5 sm:px-2 py-1 text-left font-medium text-[10px] sm:text-xs whitespace-nowrap text-gray-700">
+                            <td className="px-1.5 sm:px-2 py-1.5 sm:py-1 text-left font-medium text-[10px] sm:text-xs whitespace-nowrap text-gray-700 align-middle">
                               {cat.name}
                             </td>
                             {columns.map((col) => {
                               const val = getCellValue(cat.id, col);
                               const dateKey = isSingleWeek ? col.key : col.date.split('_')[0];
                               return (
-                                <td key={col.key} className="px-0.5 py-0.5 text-center">
+                                <td key={col.key} className="px-0.5 py-0.5 text-center align-middle">
                                   <CellInput
                                     value={val}
                                     onChange={(v) => handleCellChange(cat.id, col.key, dateKey, v)}
@@ -354,7 +349,7 @@ export default function CompteRenduTab() {
                                 </td>
                               );
                             })}
-                            <td className="px-1.5 py-1 text-center font-bold text-[11px] sm:text-xs text-[var(--theme-primary)] bg-[var(--theme-primary-light)]/50">
+                            <td className="px-1.5 py-1.5 sm:py-1 text-center font-bold text-[11px] sm:text-xs text-[var(--theme-primary)] bg-[var(--theme-primary-light)]/50 align-middle">
                               {cat.unit === 'minutes' ? formatMinutes(getRowTotal(cat.id)) : getRowTotal(cat.id) || ''}
                             </td>
                           </tr>
@@ -373,14 +368,14 @@ export default function CompteRenduTab() {
                       </tr>
                       {ungrouped.map((cat, rowIndex) => (
                         <tr key={cat.id} className={rowIndex % 2 === 0 ? 'bg-white' : 'bg-[var(--theme-primary-light)]/30'}>
-                          <td className="px-1.5 sm:px-2 py-1 text-left font-medium text-[10px] sm:text-xs whitespace-nowrap text-gray-700">
+                          <td className="px-1.5 sm:px-2 py-1.5 sm:py-1 text-left font-medium text-[10px] sm:text-xs whitespace-nowrap text-gray-700 align-middle">
                             {cat.name}
                           </td>
                           {columns.map((col) => {
                             const val = getCellValue(cat.id, col);
                             const dateKey = isSingleWeek ? col.key : col.date.split('_')[0];
                             return (
-                              <td key={col.key} className="px-0.5 py-0.5 text-center">
+                              <td key={col.key} className="px-0.5 py-0.5 text-center align-middle">
                                 <CellInput
                                   value={val}
                                   onChange={(v) => handleCellChange(cat.id, col.key, dateKey, v)}
@@ -388,7 +383,7 @@ export default function CompteRenduTab() {
                               </td>
                             );
                           })}
-                          <td className="px-1.5 py-1 text-center font-bold text-[11px] sm:text-xs text-[var(--theme-primary)] bg-[var(--theme-primary-light)]/50">
+                          <td className="px-1.5 py-1.5 sm:py-1 text-center font-bold text-[11px] sm:text-xs text-[var(--theme-primary)] bg-[var(--theme-primary-light)]/50 align-middle">
                             {cat.unit === 'minutes' ? formatMinutes(getRowTotal(cat.id)) : getRowTotal(cat.id) || ''}
                           </td>
                         </tr>
