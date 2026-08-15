@@ -15,38 +15,65 @@ export async function POST(request: Request) {
     const totalDays = differenceInCalendarDays(end, start) + 1;
     const isSingleWeek = totalDays <= 7;
 
-    // Fetch only grouped categories (those assigned to a group) for this user
+    // Fetch ALL categories (grouped AND ungrouped) for this user
     const categories = await db.activityCategory.findMany({
-      where: { groupId: { not: null }, userId: auth.user.id },
+      where: { userId: auth.user.id },
       orderBy: { sortOrder: 'asc' },
       include: { group: true },
+    });
+
+    // Fetch groups
+    const groups = await db.activityGroup.findMany({
+      where: { userId: auth.user.id },
+      orderBy: { sortOrder: 'asc' },
     });
 
     const profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
     const books = await db.book.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
     const prayers = await db.prayerNeed.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
+
+    // Fetch ALL entries for this user's categories in the date range
+    const userCategoryIds = categories.map((c) => c.id);
     const entries = await db.dailyEntry.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
+      where: {
+        categoryId: { in: userCategoryIds },
+        date: { gte: startDate, lte: endDate },
+      },
       include: { category: true },
     });
 
-    // Filter entries to only include those belonging to this user's categories
-    const userCategoryIds = categories.map((c) => c.id);
-    const userEntries = entries.filter((e) => userCategoryIds.includes(e.categoryId));
+    // Fetch Bible reading logs
+    const bibleLogs = await db.bibleReadingLog.findMany({
+      where: { userId: auth.user.id, date: { gte: startDate, lte: endDate } },
+      orderBy: { date: 'asc' },
+    });
 
+    // Fetch finances
+    const finances = await db.financeEntry.findMany({
+      where: { userId: auth.user.id, date: { gte: startDate, lte: endDate } },
+      orderBy: { date: 'asc' },
+    });
+
+    // Build entry map
     const entryMap: Record<string, number> = {};
-    for (const e of userEntries) {
+    for (const e of entries) {
       entryMap[`${e.date}_${e.categoryId}`] = e.value;
     }
 
-    // Group categories by group
-    const grouped = new Map<string, typeof categories>();
-    for (const cat of categories) {
-      const gId = cat.groupId || '_ungrouped';
-      if (!grouped.has(gId)) grouped.set(gId, []);
-      grouped.get(gId)!.push(cat);
+    // Build bible log map
+    const bibleMap: Record<string, { chapters: number; duration: number }> = {};
+    for (const log of bibleLogs) {
+      if (!bibleMap[log.date]) bibleMap[log.date] = { chapters: 0, duration: 0 };
+      bibleMap[log.date].chapters += log.chapters || 0;
+      bibleMap[log.date].duration += log.duration || 0;
     }
 
+    // Compute finance totals
+    const totalIncome = finances.filter(f => f.type === 'income').reduce((s, f) => s + f.amount, 0);
+    const totalExpenses = finances.filter(f => f.type === 'expense').reduce((s, f) => s + f.amount, 0);
+    const balance = totalIncome - totalExpenses;
+
+    // Build column headers
     let columnHeaders: string[];
     let columns: string[];
 
@@ -66,13 +93,13 @@ export async function POST(request: Request) {
       });
     }
 
-    function getCellValues(cat: typeof categories[0]): number[] {
+    function getCellValues(catId: string): number[] {
       return columns.map((col) => {
-        if (isSingleWeek) return entryMap[`${col}_${cat.id}`] || 0;
+        if (isSingleWeek) return entryMap[`${col}_${catId}`] || 0;
         const [wStart, wEnd] = col.split('_');
         let total = 0;
         const days = eachDayOfInterval({ start: new Date(wStart), end: new Date(wEnd) });
-        for (const day of days) total += entryMap[`${format(day, 'yyyy-MM-dd')}_${cat.id}`] || 0;
+        for (const day of days) total += entryMap[`${format(day, 'yyyy-MM-dd')}_${catId}`] || 0;
         return total;
       });
     }
@@ -90,35 +117,99 @@ export async function POST(request: Request) {
       return c === 0 ? '' : `${c}`;
     }
 
-    // Build grouped table rows with group headers
+    function fmtMoney(n: number): string {
+      return n.toLocaleString('fr-FR');
+    }
+
+    // Organize categories: grouped first (with group headers), then ungrouped
+    const groupedCats = categories.filter(c => c.groupId);
+    const ungroupedCats = categories.filter(c => !c.groupId);
+
     let tableRows = '';
     let globalRowIndex = 0;
     const personalTotalPerCol: number[] = columns.map(() => 0);
     let personalGrandTotal = 0;
 
-    for (const [gId, cats] of grouped) {
-      const groupName = cats[0]?.group?.name || 'Autres';
-      tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">${groupName}</td></tr>`;
+    // Helper to render a row
+    function renderRow(cat: typeof categories[0]) {
+      const values = getCellValues(cat.id);
+      const rowTotal = values.reduce((s, v) => s + v, 0);
 
-      for (const cat of cats) {
-        const values = getCellValues(cat);
-        const rowTotal = values.reduce((s, v) => s + v, 0);
+      if (cat.isPersonal && cat.unit === 'minutes') {
+        values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
+        personalGrandTotal += rowTotal;
+      }
 
-        if (cat.isPersonal && cat.unit === 'minutes') {
-          values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
-          personalGrandTotal += rowTotal;
-        }
+      const isZebra = globalRowIndex % 2 === 1;
+      const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
 
-        tableRows += `
+      tableRows += `
       <tr>
         <td class="row-label">${cat.name}</td>
         <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
-        ${values.map((v) => `<td class="zebra-${globalRowIndex % 2}">${cat.unit === 'minutes' ? fmtMin(v) : fmtCount(v)}</td>`).join('')}
-        <td style="font-weight:bold; background-color:#fed7aa;">${cat.unit === 'minutes' ? fmtMin(rowTotal) : fmtCount(rowTotal)}</td>
+        ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
+        <td class="total-cell-inline">${val(rowTotal)}</td>
       </tr>`;
-        globalRowIndex++;
-      }
+      globalRowIndex++;
     }
+
+    // Render grouped categories with group headers
+    const groupsMap = new Map(groups.map(g => [g.id, g]));
+    const groupedByGroup = new Map<string, typeof groupedCats>();
+    for (const cat of groupedCats) {
+      const gId = cat.groupId!;
+      if (!groupedByGroup.has(gId)) groupedByGroup.set(gId, []);
+      groupedByGroup.get(gId)!.push(cat);
+    }
+
+    // Sort groups by their sortOrder
+    const sortedGroupIds = groups
+      .filter(g => groupedByGroup.has(g.id))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(g => g.id);
+
+    for (const gId of sortedGroupIds) {
+      const cats = groupedByGroup.get(gId)!;
+      const group = groupsMap.get(gId);
+      const groupName = group?.name || 'Groupe';
+      tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">${groupName}</td></tr>`;
+      for (const cat of cats) renderRow(cat);
+    }
+
+    // Render ungrouped categories
+    if (ungroupedCats.length > 0) {
+      tableRows += `<tr><td class="group-label" colspan="${columns.length + 3}">Sans groupe</td></tr>`;
+      for (const cat of ungroupedCats) renderRow(cat);
+    }
+
+    // Build bible reading row
+    const bibleChaptersPerCol = columns.map((col) => {
+      if (isSingleWeek) return bibleMap[col]?.chapters || 0;
+      const [wStart, wEnd] = col.split('_');
+      let total = 0;
+      const days = eachDayOfInterval({ start: new Date(wStart), end: new Date(wEnd) });
+      for (const day of days) total += bibleMap[format(day, 'yyyy-MM-dd')]?.chapters || 0;
+      return total;
+    });
+    const totalBibleChapters = bibleChaptersPerCol.reduce((s, c) => s + c, 0);
+
+    // Build daily bible rows
+    let bibleRows = '';
+    const bibleDays = columns.map((col) => {
+      if (isSingleWeek) return bibleMap[col]?.chapters || 0;
+      const [wStart, wEnd] = col.split('_');
+      let total = 0;
+      const days = eachDayOfInterval({ start: new Date(wStart), end: new Date(wEnd) });
+      for (const day of days) total += bibleMap[format(day, 'yyyy-MM-dd')]?.chapters || 0;
+      return total;
+    });
+    bibleRows += `
+      <tr>
+        <td class="row-label">Lecture biblique</td>
+        <td class="unit-col">Ch.</td>
+        ${bibleDays.map((v) => `<td class="data-zebra">${fmtCount(v)}</td>`).join('')}
+        <td class="total-cell-inline">${fmtCount(totalBibleChapters)}</td>
+      </tr>`;
 
     const fullName = profile ? `${profile.lastName || ''} ${profile.firstName || ''}`.trim() : '';
     const assembly = profile?.assembly || '';
@@ -128,6 +219,33 @@ export async function POST(request: Request) {
       ? `du ${format(start, 'd', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`
       : `du ${format(start, 'd MMMM yyyy', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`;
 
+    // Build finance rows
+    const financeRows = finances.length > 0 ? `
+      <table class="finance-table">
+        <thead>
+          <tr>
+            <th class="finance-header-green" colspan="${columns.length + 3}">Finances</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="finance-label">Entrées</td>
+            <td colspan="${columns.length + 2}"></td>
+            <td class="total-cell-inline">${fmtMoney(totalIncome)}</td>
+          </tr>
+          <tr>
+            <td class="finance-label-expense">Sorties</td>
+            <td colspan="${columns.length + 2}"></td>
+            <td class="total-cell-expense">${fmtMoney(totalExpenses)}</td>
+          </tr>
+          <tr>
+            <td class="finance-label-balance">Solde</td>
+            <td colspan="${columns.length + 2}"></td>
+            <td class="total-cell-balance">${fmtMoney(balance)}</td>
+          </tr>
+        </tbody>
+      </table>` : '';
+
     const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -136,38 +254,65 @@ export async function POST(request: Request) {
   @page { size: A4 landscape; margin: 8mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color: #1a1a1a; }
-  .title { text-align: center; font-size: 14px; font-weight: bold; text-decoration: underline; margin-bottom: 6px; }
-  .meta { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 10px; }
-  table { width: 100%; border-collapse: collapse; font-size: 8px; }
-  th, td { border: 1px solid #999; padding: 3px 4px; text-align: center; }
-  th { background-color: #f97316; color: white; font-weight: bold; font-size: 7.5px; }
-  .row-label { background-color: #fb923c; color: white; text-align: left; font-weight: bold; white-space: nowrap; min-width: 120px; font-size: 7.5px; }
-  .group-label { background-color: #ea580c; color: white; text-align: left; font-weight: bold; font-size: 8px; padding: 4px; }
-  .total-label { background-color: #c2410c; color: white; text-align: left; font-weight: bold; font-size: 8px; }
-  .total-cell { background-color: #c2410c; color: white; font-weight: bold; }
-  .zebra-0 { background-color: #ffffff; }
-  .zebra-1 { background-color: #fff7ed; }
-  .unit-col { width: 35px; background-color: #fdba74; color: white; font-size: 7px; }
-  .footer-boxes { display: flex; gap: 10px; margin-top: 10px; }
-  .footer-box { flex: 1; border: 1px solid #999; min-height: 60px; padding: 4px; }
-  .footer-box h4 { font-size: 9px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 4px; color: #ea580c; }
+
+  /* Title */
+  .title { text-align: center; font-size: 14px; font-weight: bold; text-decoration: underline; margin-bottom: 6px; color: #1e3a5f; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 10px; color: #333; }
+
+  /* Main table */
+  table.main-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
+  table.main-table th, table.main-table td { border: 1px solid #aaa; padding: 3px 4px; text-align: center; }
+  table.main-table th { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 7.5px; text-transform: capitalize; }
+  .row-label { background-color: #2d5986; color: white; text-align: left; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; padding-left: 5px !important; }
+  .group-label { background-color: #14532d; color: white; text-align: left; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; text-transform: uppercase; letter-spacing: 0.5px; }
+  .unit-col { width: 30px; background-color: #64748b; color: white; font-size: 7px; }
+  .data-zebra { background-color: #f0f7ff; }
+  .total-cell-inline { font-weight: bold; background-color: #e0eef9; text-align: center !important; }
+
+  /* Total row */
+  .total-label { background-color: #1e3a5f; color: white; text-align: left; font-weight: bold; font-size: 7.5px; padding-left: 5px !important; }
+  .total-cell { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 9px; }
+  .grand-total { background-color: #f59e0b; color: #1a1a1a; font-weight: bold; font-size: 10px; }
+
+  /* Bible section */
+  .bible-header { background-color: #7c3aed; color: white; text-align: left; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; }
+  .bible-row-label { background-color: #8b5cf6; color: white; text-align: left; font-weight: bold; white-space: nowrap; font-size: 7.5px; padding-left: 5px !important; }
+  .bible-unit { background-color: #64748b; color: white; font-size: 7px; }
+
+  /* Finance table */
+  table.finance-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
+  table.finance-table th, table.finance-table td { border: 1px solid #aaa; padding: 3px 4px; }
+  .finance-header-green { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; text-align: left; padding-left: 5px !important; }
+  .finance-label { background-color: #166534; color: white; font-weight: bold; font-size: 7.5px; padding-left: 5px !important; text-align: left; }
+  .finance-label-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; font-size: 7.5px; padding-left: 5px !important; text-align: left; }
+  .finance-label-balance { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; padding-left: 5px !important; text-align: left; }
+  .total-cell-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; text-align: center !important; }
+  .total-cell-balance { background-color: #22c55e; color: white; font-weight: bold; text-align: center !important; font-size: 9px; }
+
+  /* Footer boxes */
+  .footer-boxes { display: flex; gap: 8px; margin-top: 8px; }
+  .footer-box { flex: 1; border: 1px solid #aaa; min-height: 50px; padding: 4px; }
+  .footer-box h4 { font-size: 8px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 3px; color: #1e3a5f; }
+  .footer-box .item { font-size: 7px; margin-bottom: 2px; color: #333; }
+  .footer-box .empty { font-size: 7px; color: #999; font-style: italic; }
 </style>
 </head>
 <body>
   <div class="title">Compte rendu ${periodLabel}</div>
   <div class="meta">
-    <span><strong>Nom:</strong> ${fullName}</span>
-    <span><strong>Assemblée:</strong> ${assembly}</span>
-    <span><strong>Faiseur de disciple:</strong> ${mentor}</span>
+    <span><strong>Nom:</strong> ${fullName || '-'}</span>
+    <span><strong>Assemblée:</strong> ${assembly || '-'}</span>
+    <span><strong>Faiseur de disciple:</strong> ${mentor || '-'}</span>
   </div>
 
-  <table>
+  <!-- Main Activities Table -->
+  <table class="main-table">
     <thead>
       <tr>
         <th class="row-label" style="width:140px;">Activité</th>
-        <th style="width:35px;">Unité</th>
+        <th style="width:30px;">Unité</th>
         ${columnHeaders.map((h) => `<th>${h}</th>`).join('')}
-        <th style="width:50px;">Total</th>
+        <th style="width:45px;">Total</th>
       </tr>
     </thead>
     <tbody>
@@ -176,23 +321,31 @@ export async function POST(request: Request) {
       <tr>
         <td class="total-label" colspan="2">Total de temps passé seul avec le Seigneur</td>
         ${personalTotalPerCol.map((t) => `<td class="total-cell">${fmtMin(t)}</td>`).join('')}
-        <td class="total-cell" style="font-size:10px;">${fmtMin(personalGrandTotal)}</td>
+        <td class="grand-total">${fmtMin(personalGrandTotal)}</td>
       </tr>
+
+      <!-- Bible reading -->
+      <tr><td class="bible-header" colspan="${columns.length + 3}">Lecture biblique</td></tr>
+      ${bibleRows}
     </tbody>
   </table>
 
+  <!-- Finances -->
+  ${financeRows}
+
+  <!-- Footer boxes -->
   <div class="footer-boxes">
     <div class="footer-box">
       <h4>Livres lus</h4>
-      ${books.map((b) => `<div style="font-size:7px;margin-bottom:2px;">${b.title}${b.author ? ` - ${b.author}` : ''} (${b.currentChapter}/${b.totalChapters || '?'} ch.)</div>`).join('') || '<div style="font-size:7px;color:#999;">Aucun livre</div>'}
+      ${books.map((b) => `<div class="item">• ${b.title}${b.author ? ` - ${b.author}` : ''} (${b.currentChapter}/${b.totalChapters || '?'} ch.)</div>`).join('') || '<div class="empty">Aucun livre</div>'}
     </div>
     <div class="footer-box">
       <h4>Besoins de prières</h4>
-      ${prayers.filter((p) => !p.resolved).slice(0, 5).map((p) => `<div style="font-size:7px;margin-bottom:2px;">• ${p.text}</div>`).join('') || '<div style="font-size:7px;color:#999;">Aucun besoin</div>'}
+      ${prayers.filter((p) => !p.resolved).slice(0, 5).map((p) => `<div class="item">• ${p.text}</div>`).join('') || '<div class="empty">Aucun besoin</div>'}
     </div>
     <div class="footer-box">
       <h4>Conseils et appréciations</h4>
-      <div style="font-size:7px;color:#999;">&nbsp;</div>
+      <div class="empty">&nbsp;</div>
     </div>
   </div>
 </body>
