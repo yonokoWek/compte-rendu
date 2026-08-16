@@ -128,7 +128,6 @@ export async function POST(request: Request) {
     // Default: "show"
     const hiddenCats = new Set(categories.filter(c => c.pdfDisplay === 'hidden').map(c => c.id));
     const showIndividualCats = new Set(categories.filter(c => c.pdfDisplay === 'show').map(c => c.id));
-    const groupOnlyCats = new Set(categories.filter(c => c.pdfDisplay === 'group_only').map(c => c.id));
 
     // Grouped categories: only those marked as "group_only" or in a group
     // The group row shows the sum of ALL non-hidden categories in that group
@@ -138,10 +137,18 @@ export async function POST(request: Request) {
     // Grouped categories that should be shown individually (pdfDisplay === "show" AND in a group)
     const groupIndividualCats = categories.filter(c => c.groupId && showIndividualCats.has(c.id));
 
-    let tableRows = '';
-    let globalRowIndex = 0;
+    // Personal total = sum of ALL personal+minutes categories (except hidden)
+    const allPersonalCats = categories.filter(c => c.isPersonal && c.unit === 'minutes' && !hiddenCats.has(c.id));
     const personalTotalPerCol: number[] = columns.map(() => 0);
     let personalGrandTotal = 0;
+    for (const cat of allPersonalCats) {
+      const values = getCellValues(cat.id);
+      values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
+      personalGrandTotal += values.reduce((s, v) => s + v, 0);
+    }
+
+    let tableRows = '';
+    let globalRowIndex = 0;
 
     // Render one row per GROUP (sum of all sub-categories except hidden ones)
     const groupsMap = new Map(groups.map(g => [g.id, g]));
@@ -184,13 +191,6 @@ export async function POST(request: Request) {
       const allMinutes = cats.every(c => c.unit === 'minutes');
       const val = allMinutes ? fmtMin : fmtCount;
 
-      // Track personal time
-      const hasPersonalMinutes = cats.some(c => c.isPersonal && c.unit === 'minutes');
-      if (hasPersonalMinutes) {
-        summedValues.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
-        personalGrandTotal += rowTotal;
-      }
-
       // Use custom color from the first category that has one, or default
       const groupColor = cats.find(c => c.pdfColor)?.pdfColor || '#2d5986';
       const isZebra = globalRowIndex % 2 === 1;
@@ -210,12 +210,6 @@ export async function POST(request: Request) {
       const rowTotal = values.reduce((s, v) => s + v, 0);
       const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
 
-      // Track personal time
-      if (cat.isPersonal && cat.unit === 'minutes') {
-        values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
-        personalGrandTotal += rowTotal;
-      }
-
       const catColor = cat.pdfColor || '#475569';
       const isZebra = globalRowIndex % 2 === 1;
       tableRows += `
@@ -233,11 +227,6 @@ export async function POST(request: Request) {
       const values = getCellValues(cat.id);
       const rowTotal = values.reduce((s, v) => s + v, 0);
       const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
-
-      if (cat.isPersonal && cat.unit === 'minutes') {
-        values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
-        personalGrandTotal += rowTotal;
-      }
 
       const catColor = cat.pdfColor || '#475569';
       const isZebra = globalRowIndex % 2 === 1;
@@ -330,28 +319,28 @@ export async function POST(request: Request) {
 
   /* Main table */
   table.main-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
-  table.main-table th, table.main-table td { border: 1px solid #aaa; padding: 3px 4px; text-align: center; }
+  table.main-table th, table.main-table td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; vertical-align: middle; }
   table.main-table th { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 7.5px; text-transform: capitalize; }
-  .row-label { background-color: #2d5986; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; }
-  .row-label-ungrouped { background-color: #475569; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; }
+  .row-label { background-color: #2d5986; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; vertical-align: middle; }
+  .row-label-ungrouped { background-color: #475569; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; vertical-align: middle; }
   .group-label { background-color: #14532d; color: white; text-align: center; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; text-transform: uppercase; letter-spacing: 0.5px; }
-  .unit-col { width: 30px; background-color: #64748b; color: white; font-size: 7px; }
+  .unit-col { width: 30px; background-color: #64748b; color: white; font-size: 7px; text-align: center; vertical-align: middle; }
   .data-zebra { background-color: #f0f7ff; }
   .total-cell-inline { font-weight: bold; background-color: #e0eef9; text-align: center !important; }
 
   /* Total row */
-  .total-label { background-color: #1e3a5f; color: white; text-align: center; font-weight: bold; font-size: 7.5px; }
-  .total-cell { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 9px; }
-  .grand-total { background-color: #f59e0b; color: #1a1a1a; font-weight: bold; font-size: 10px; }
+  .total-label { background-color: #1e3a5f; color: white; text-align: center; font-weight: bold; font-size: 7.5px; vertical-align: middle; }
+  .total-cell { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 9px; text-align: center; vertical-align: middle; }
+  .grand-total { background-color: #f59e0b; color: #1a1a1a; font-weight: bold; font-size: 10px; text-align: center; vertical-align: middle; }
 
   /* Bible section */
   .bible-header { background-color: #7c3aed; color: white; text-align: center; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; }
-  .bible-row-label { background-color: #8b5cf6; color: white; text-align: center; font-weight: bold; white-space: nowrap; font-size: 7.5px; }
-  .bible-unit { background-color: #64748b; color: white; font-size: 7px; }
+  .bible-row-label { background-color: #8b5cf6; color: white; text-align: center; font-weight: bold; white-space: nowrap; font-size: 7.5px; vertical-align: middle; }
+  .bible-unit { background-color: #64748b; color: white; font-size: 7px; text-align: center; vertical-align: middle; }
 
   /* Finance table */
   table.finance-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
-  table.finance-table th, table.finance-table td { border: 1px solid #aaa; padding: 3px 4px; text-align: center; }
+  table.finance-table th, table.finance-table td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; vertical-align: middle; }
   .finance-header-green { background-color: #14532d; color: white; font-weight: bold; font-size: 8px; text-align: center; }
   .finance-label { background-color: #166534; color: white; font-weight: bold; font-size: 7.5px; text-align: center; }
   .finance-label-expense { background-color: #fecaca; color: #991b1b; font-weight: bold; font-size: 7.5px; text-align: center; }
