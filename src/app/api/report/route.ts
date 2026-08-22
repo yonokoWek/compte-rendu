@@ -147,12 +147,12 @@ export async function POST(request: Request) {
     // Ungrouped categories shown individually (only if pdfDisplay === "show")
     const ungroupedShowCats = categories.filter(c => !c.groupId && c.pdfDisplay !== 'hidden');
 
-    // Personal total = sum of ALL personal+minutes categories (except hidden)
-    // This includes grouped activities' time
-    const allPersonalCats = categories.filter(c => c.isPersonal && c.unit === 'minutes' && !hiddenCats.has(c.id));
+    // Total = sum of ALL displayed minute-based activities (grouped or not, except hidden)
+    // This includes ALL activities shown in the table above, regardless of isPersonal flag
+    const displayedMinuteCats = categories.filter(c => c.unit === 'minutes' && !hiddenCats.has(c.id));
     const personalTotalPerCol: number[] = columns.map(() => 0);
     let personalGrandTotal = 0;
-    for (const cat of allPersonalCats) {
+    for (const cat of displayedMinuteCats) {
       const values = getCellValues(cat.id);
       values.forEach((v, ci) => { personalTotalPerCol[ci] += v; });
       personalGrandTotal += values.reduce((s, v) => s + v, 0);
