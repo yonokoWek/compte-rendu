@@ -212,9 +212,10 @@ export default function CompteRenduTab() {
   const handleExportPDF = async () => {
     setPdfLoading(true);
     try {
+      const pdfColor = localStorage.getItem('cr_pdf_color') || '#1e3a5f';
       const reportRes = await authFetch('/api/report', {
         method: 'POST',
-        body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd') }),
+        body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd'), pdfColor }),
       });
       const reportData = await reportRes.json();
       await generateClientPDF(

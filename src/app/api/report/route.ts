@@ -9,11 +9,15 @@ export async function POST(request: Request) {
     const auth = await requireAuth(request);
     if (auth.response) return auth.response;
 
-    const { startDate, endDate } = await request.json();
+    const { startDate, endDate, pdfColor: clientPdfColor } = await request.json();
     const start = new Date(startDate);
     const end = new Date(endDate);
     const totalDays = differenceInCalendarDays(end, start) + 1;
     const isSingleWeek = totalDays <= 7;
+
+    // Global PDF theme color (from client localStorage, default to dark blue)
+    const themeColor = clientPdfColor || '#1e3a5f';
+    const themeColorLight = themeColor + 'cc'; // slightly transparent for variation
 
     // Fetch ALL categories (grouped AND ungrouped) for this user
     const categories = await db.activityCategory.findMany({
@@ -104,11 +108,22 @@ export async function POST(request: Request) {
       });
     }
 
+    // Format minutes for regular activity rows (compact: "1h 45" or "45")
     function fmtMin(m: number): string {
       if (m === 0) return '';
       const h = Math.floor(m / 60);
       const min = m % 60;
       if (h === 0) return `${min}`;
+      if (min === 0) return `${h}h`;
+      return `${h}h ${min}`;
+    }
+
+    // Format minutes for the TOTAL row (always include unit for clarity)
+    function fmtMinTotal(m: number): string {
+      if (m === 0) return '';
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      if (h === 0) return `${min} min`;
       if (min === 0) return `${h}h`;
       return `${h}h ${min}`;
     }
@@ -121,23 +136,19 @@ export async function POST(request: Request) {
       return n.toLocaleString('fr-FR');
     }
 
-    // Organize categories respecting pdfDisplay settings
-    // "hidden" = never shown on PDF
-    // "show" = shown individually (even if in a group, shown as its own row)
-    // "group_only" = only counted in group total, not shown individually
-    // Default: "show"
+    // === PDF Display Rules (Points 3, 5) ===
+    // Hidden categories: never shown, never counted
     const hiddenCats = new Set(categories.filter(c => c.pdfDisplay === 'hidden').map(c => c.id));
-    const showIndividualCats = new Set(categories.filter(c => c.pdfDisplay === 'show').map(c => c.id));
 
-    // Grouped categories: only those marked as "group_only" or in a group
-    // The group row shows the sum of ALL non-hidden categories in that group
+    // Grouped categories (non-hidden): shown ONLY as group rows with summed time
+    // Individual activities within a group NEVER appear on PDF
     const groupedCats = categories.filter(c => c.groupId && !hiddenCats.has(c.id));
-    // Ungrouped categories that should be shown individually
-    const ungroupedCats = categories.filter(c => !c.groupId && showIndividualCats.has(c.id));
-    // Grouped categories that should be shown individually (pdfDisplay === "show" AND in a group)
-    const groupIndividualCats = categories.filter(c => c.groupId && showIndividualCats.has(c.id));
+
+    // Ungrouped categories shown individually (only if pdfDisplay === "show")
+    const ungroupedShowCats = categories.filter(c => !c.groupId && c.pdfDisplay !== 'hidden');
 
     // Personal total = sum of ALL personal+minutes categories (except hidden)
+    // This includes grouped activities' time
     const allPersonalCats = categories.filter(c => c.isPersonal && c.unit === 'minutes' && !hiddenCats.has(c.id));
     const personalTotalPerCol: number[] = columns.map(() => 0);
     let personalGrandTotal = 0;
@@ -150,7 +161,7 @@ export async function POST(request: Request) {
     let tableRows = '';
     let globalRowIndex = 0;
 
-    // Render one row per GROUP (sum of all sub-categories except hidden ones)
+    // === Render GROUP rows only (summed) ===
     const groupsMap = new Map(groups.map(g => [g.id, g]));
     const groupedByGroup = new Map<string, typeof groupedCats>();
     for (const cat of groupedCats) {
@@ -159,9 +170,9 @@ export async function POST(request: Request) {
       groupedByGroup.get(gId)!.push(cat);
     }
 
-    // Sort groups by their sortOrder
+    // Sort groups by their sortOrder, auto-show if group has activities
     const sortedGroupIds = groups
-      .filter(g => groupedByGroup.has(g.id))
+      .filter(g => groupedByGroup.has(g.id) && groupedByGroup.get(g.id)!.length > 0)
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map(g => g.id);
 
@@ -191,12 +202,10 @@ export async function POST(request: Request) {
       const allMinutes = cats.every(c => c.unit === 'minutes');
       const val = allMinutes ? fmtMin : fmtCount;
 
-      // Use custom color from the first category that has one, or default
-      const groupColor = cats.find(c => c.pdfColor)?.pdfColor || '#2d5986';
       const isZebra = globalRowIndex % 2 === 1;
       tableRows += `
       <tr>
-        <td class="row-label" style="background-color: ${groupColor};">${groupName}</td>
+        <td class="row-label" style="background-color: ${themeColor};">${groupName}</td>
         <td class="unit-col">${allMinutes ? 'min' : 'Part.'}</td>
         ${summedValues.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
         <td class="total-cell-inline">${val(rowTotal)}</td>
@@ -204,35 +213,16 @@ export async function POST(request: Request) {
       globalRowIndex++;
     }
 
-    // Render UNGROUPED categories that should be shown individually
-    for (const cat of ungroupedCats) {
+    // === Render UNGROUPED categories (individual, non-hidden) ===
+    for (const cat of ungroupedShowCats) {
       const values = getCellValues(cat.id);
       const rowTotal = values.reduce((s, v) => s + v, 0);
       const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
 
-      const catColor = cat.pdfColor || '#475569';
       const isZebra = globalRowIndex % 2 === 1;
       tableRows += `
       <tr>
-        <td class="row-label-ungrouped" style="background-color: ${catColor};">${cat.name}</td>
-        <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
-        ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
-        <td class="total-cell-inline">${val(rowTotal)}</td>
-      </tr>`;
-      globalRowIndex++;
-    }
-
-    // Render GROUPED categories that should also be shown individually (pdfDisplay = "show")
-    for (const cat of groupIndividualCats) {
-      const values = getCellValues(cat.id);
-      const rowTotal = values.reduce((s, v) => s + v, 0);
-      const val = cat.unit === 'minutes' ? fmtMin : fmtCount;
-
-      const catColor = cat.pdfColor || '#475569';
-      const isZebra = globalRowIndex % 2 === 1;
-      tableRows += `
-      <tr>
-        <td class="row-label-ungrouped" style="background-color: ${catColor};">${cat.name}</td>
+        <td class="row-label-ungrouped" style="background-color: ${themeColor};">${cat.name}</td>
         <td class="unit-col">${cat.unit === 'minutes' ? 'min' : 'Part.'}</td>
         ${values.map((v) => `<td class="${isZebra ? 'data-zebra' : ''}">${val(v)}</td>`).join('')}
         <td class="total-cell-inline">${val(rowTotal)}</td>
@@ -314,23 +304,23 @@ export async function POST(request: Request) {
   body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color: #1a1a1a; }
 
   /* Title */
-  .title { text-align: center; font-size: 14px; font-weight: bold; text-decoration: underline; margin-bottom: 6px; color: #1e3a5f; }
+  .title { text-align: center; font-size: 14px; font-weight: bold; text-decoration: underline; margin-bottom: 6px; color: ${themeColor}; }
   .meta { display: flex; justify-content: center; gap: 40px; margin-bottom: 8px; font-size: 10px; color: #333; text-align: center; }
 
   /* Main table */
   table.main-table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 6px; }
   table.main-table th, table.main-table td { border: 1px solid #aaa; padding: 4px 6px; text-align: center; vertical-align: middle; }
-  table.main-table th { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 7.5px; text-transform: capitalize; }
-  .row-label { background-color: #2d5986; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; vertical-align: middle; }
-  .row-label-ungrouped { background-color: #475569; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; vertical-align: middle; }
+  table.main-table th { background-color: ${themeColor}; color: white; font-weight: bold; font-size: 7.5px; text-transform: capitalize; }
+  .row-label { background-color: ${themeColor}; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; vertical-align: middle; }
+  .row-label-ungrouped { background-color: ${themeColorLight}; color: white; text-align: center; font-weight: bold; white-space: nowrap; min-width: 110px; font-size: 7.5px; vertical-align: middle; }
   .group-label { background-color: #14532d; color: white; text-align: center; font-weight: bold; font-size: 7.5px; padding: 3px 5px !important; text-transform: uppercase; letter-spacing: 0.5px; }
   .unit-col { width: 30px; background-color: #64748b; color: white; font-size: 7px; text-align: center; vertical-align: middle; }
   .data-zebra { background-color: #f0f7ff; }
   .total-cell-inline { font-weight: bold; background-color: #e0eef9; text-align: center !important; }
 
   /* Total row */
-  .total-label { background-color: #1e3a5f; color: white; text-align: center; font-weight: bold; font-size: 7.5px; vertical-align: middle; }
-  .total-cell { background-color: #1e3a5f; color: white; font-weight: bold; font-size: 9px; text-align: center; vertical-align: middle; }
+  .total-label { background-color: ${themeColor}; color: white; text-align: center; font-weight: bold; font-size: 7.5px; vertical-align: middle; }
+  .total-cell { background-color: ${themeColor}; color: white; font-weight: bold; font-size: 9px; text-align: center; vertical-align: middle; }
   .grand-total { background-color: #f59e0b; color: #1a1a1a; font-weight: bold; font-size: 10px; text-align: center; vertical-align: middle; }
 
   /* Bible section */
@@ -351,7 +341,7 @@ export async function POST(request: Request) {
   /* Footer boxes */
   .footer-boxes { display: flex; gap: 8px; margin-top: 8px; }
   .footer-box { flex: 1; border: 1px solid #aaa; min-height: 50px; padding: 4px; }
-  .footer-box h4 { font-size: 8px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 3px; color: #1e3a5f; text-align: center; }
+  .footer-box h4 { font-size: 8px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 3px; color: ${themeColor}; text-align: center; }
   .footer-box .item { font-size: 7px; margin-bottom: 2px; color: #333; text-align: center; }
   .footer-box .empty { font-size: 7px; color: #999; font-style: italic; text-align: center; }
 </style>
@@ -379,8 +369,8 @@ export async function POST(request: Request) {
 
       <tr>
         <td class="total-label" colspan="2">Total de temps passé seul avec le Seigneur</td>
-        ${personalTotalPerCol.map((t) => `<td class="total-cell">${fmtMin(t)}</td>`).join('')}
-        <td class="grand-total">${fmtMin(personalGrandTotal)}</td>
+        ${personalTotalPerCol.map((t) => `<td class="total-cell">${fmtMinTotal(t)}</td>`).join('')}
+        <td class="grand-total">${fmtMinTotal(personalGrandTotal)}</td>
       </tr>
 
       <!-- Bible reading -->
