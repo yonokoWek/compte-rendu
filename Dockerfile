@@ -51,10 +51,16 @@ RUN groupadd --gid 1001 appuser && useradd --uid 1001 --gid appuser --create-hom
 
 WORKDIR /app
 
-# Copy standalone output from builder (already includes static + public)
+# Copy standalone output from builder
 COPY --from=builder --chown=appuser:appuser /app/.next/standalone ./
 
-# Copy Prisma schema (for db push if needed at runtime)
+# Copy static files (required for standalone mode - CSS, JS, images)
+COPY --from=builder --chown=appuser:appuser /app/.next/static ./.next/static
+
+# Copy public directory (manifest.json, sw.js, icons, etc.)
+COPY --from=builder --chown=appuser:appuser /app/public ./public
+
+# Copy Prisma schema (for reference)
 COPY --from=builder --chown=appuser:appuser /app/prisma ./prisma
 
 # Copy generated Prisma client (may not be in standalone trace)
@@ -80,27 +86,22 @@ COPY --from=builder --chown=appuser:appuser /app/node_modules/object-assign ./no
 COPY --from=builder --chown=appuser:appuser /app/node_modules/split2 ./node_modules/split2 2>/dev/null || true
 COPY --from=builder --chown=appuser:appuser /app/node_modules/readable-stream ./node_modules/readable-stream 2>/dev/null || true
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
 # Create upload directory
 RUN mkdir -p /app/public/upload && chown appuser:appuser /app/public/upload
 
-# App environment
+# App environment - Render sets PORT dynamically
 ENV NODE_ENV=production
-ENV PORT=10000
+ENV HOSTNAME=0.0.0.0
 
-# Expose port (Render free tier uses dynamic port from PORT env)
+# Expose default port (Render overrides with PORT env var)
 EXPOSE 10000
 
 # Switch to non-root user
 USER appuser
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT:-10000}/ || exit 1
 
-# Start the application via entrypoint
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Start the application directly (no entrypoint script)
 CMD ["bun", "server.js"]

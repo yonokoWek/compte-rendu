@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // No standalone - use next start directly (avoids module tracing issues with Prisma)
+  output: "standalone",
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     '127.0.0.1',
     'localhost',
   ],
+  serverExternalPackages: ["pg"],
 };
 
 export default nextConfig;
