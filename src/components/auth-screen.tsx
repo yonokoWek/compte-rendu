@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Phone, Mail, Lock, User, ArrowLeft, Shield, MessageCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Send, Mail, Lock, User, ArrowLeft, Shield, MessageCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ interface AuthScreenProps {
 }
 
 type AuthStep = 'contact' | 'verify' | 'setPin' | 'login';
-type ContactType = 'whatsapp' | 'email';
+type ContactType = 'telegram' | 'email';
 
 type StepData = {
   contact: string;
@@ -34,11 +34,11 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
   const t = useT();
   const [step, setStep] = useState<AuthStep>('contact');
   const [mode, setMode] = useState<'register' | 'login'>('register');
-  const [contactType, setContactType] = useState<ContactType>('whatsapp');
+  const [contactType, setContactType] = useState<ContactType>('telegram');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<StepData>({
     contact: '',
-    contactType: 'whatsapp',
+    contactType: 'telegram',
     code: '',
     pin: '',
     pinConfirm: '',
@@ -66,14 +66,14 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
   const handleRegister = useCallback(async () => {
     const contact = data.contact.trim();
     if (!contact) {
-      toast.error(contactType === 'whatsapp' ? t('auth.enterPhone') : t('auth.enterEmail'));
+      toast.error(contactType === 'telegram' ? t('auth.enterPhone') : t('auth.enterEmail'));
       return;
     }
     if (contactType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) {
       toast.error('Adresse email invalide');
       return;
     }
-    if (contactType === 'whatsapp' && contact.length < 7) {
+    if (contactType === 'telegram' && contact.length < 7) {
       toast.error('Numéro de téléphone invalide');
       return;
     }
@@ -151,7 +151,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
     const pin = data.loginPin.trim();
 
     if (!contact) {
-      toast.error(contactType === 'whatsapp' ? t('auth.enterPhone') : t('auth.enterEmail'));
+      toast.error(contactType === 'telegram' ? t('auth.enterPhone') : t('auth.enterEmail'));
       return;
     }
     if (!pin) {
@@ -183,8 +183,8 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fed7aa 30%, #fecaca 60%, #e9d5ff 100%)' }}>
       <Card className="w-full max-w-sm shadow-xl border-0">
         <CardHeader className="text-center pb-2 pt-6 px-6">
-          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-orange-100">
-            <Shield className="h-7 w-7 text-orange-600" />
+          <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+            <Shield className="h-7 w-7 text-gray-500" />
           </div>
           <CardTitle className="text-xl font-bold tracking-tight">{t('app.title')}</CardTitle>
           <CardDescription className="text-sm">{t('app.subtitle')}</CardDescription>
@@ -220,9 +220,9 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
               {step === 'contact' && (
                 <Tabs value={contactType} onValueChange={handleContactTypeChange} className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="whatsapp" className="gap-1.5 text-xs">
-                      <Phone className="h-3.5 w-3.5" />
-                      {t('auth.whatsapp')}
+                    <TabsTrigger value="telegram" className="gap-1.5 text-xs">
+                      <Send className="h-3.5 w-3.5" />
+                      {t('auth.telegram')}
                     </TabsTrigger>
                     <TabsTrigger value="email" className="gap-1.5 text-xs">
                       <Mail className="h-3.5 w-3.5" />
@@ -236,18 +236,18 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
               {step !== 'login' && (
                 <div className="space-y-2">
                   <Label htmlFor="contact" className="text-xs">
-                    {contactType === 'whatsapp' ? t('auth.phoneNumber') : t('auth.email')}
+                    {contactType === 'telegram' ? t('auth.phoneNumber') : t('auth.email')}
                   </Label>
                   <div className="relative">
-                    {contactType === 'whatsapp' ? (
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    {contactType === 'telegram' ? (
+                      <Send className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     ) : (
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     )}
                     <Input
                       id="contact"
                       type={contactType === 'email' ? 'email' : 'tel'}
-                      placeholder={contactType === 'whatsapp' ? t('auth.phonePlaceholder') : t('auth.emailPlaceholder')}
+                      placeholder={contactType === 'telegram' ? t('auth.phonePlaceholder') : t('auth.emailPlaceholder')}
                       value={data.contact}
                       onChange={(e) => updateData('contact', e.target.value)}
                       className="pl-10 text-sm"
@@ -265,8 +265,8 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
                   <div className="rounded-lg bg-muted/50 p-3">
                     <p className="text-xs text-muted-foreground mb-0.5">{t('auth.account')}</p>
                     <p className="text-sm font-medium flex items-center gap-2">
-                      {contactType === 'whatsapp' ? (
-                        <Phone className="h-4 w-4 text-muted-foreground" />
+                      {contactType === 'telegram' ? (
+                        <Send className="h-4 w-4 text-muted-foreground" />
                       ) : (
                         <Mail className="h-4 w-4 text-muted-foreground" />
                       )}
@@ -300,7 +300,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
                 <Button
                   onClick={handleRegister}
                   disabled={loading}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MessageCircle className="h-4 w-4 mr-2" />}
                   {t('auth.sendCode')}
@@ -311,7 +311,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
                 <Button
                   onClick={() => setStep('login')}
                   disabled={loading || !data.contact.trim()}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white"
                 >
                   {t('auth.continue')}
                 </Button>
@@ -321,7 +321,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
                 <Button
                   onClick={handleLogin}
                   disabled={loading}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                  className="w-full bg-gray-500 hover:bg-gray-600 text-white"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
                   {t('auth.login')}
@@ -354,7 +354,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
                         {t('auth.alreadyHaveAccount')}{' '}
                         <button
                           onClick={() => setMode('login')}
-                          className="text-orange-600 font-medium hover:underline"
+                          className="text-gray-600 font-medium hover:underline"
                         >
                           {t('auth.login')}
                         </button>
@@ -364,7 +364,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
                         {t('auth.noAccount')}{' '}
                         <button
                           onClick={() => setMode('register')}
-                          className="text-orange-600 font-medium hover:underline"
+                          className="text-gray-600 font-medium hover:underline"
                         >
                           {t('auth.createAccount')}
                         </button>
@@ -417,7 +417,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
               <Button
                 onClick={() => setStep('setPin')}
                 disabled={loading || data.code.length < 4}
-                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                className="w-full bg-gray-500 hover:bg-gray-600 text-white"
               >
                 {t('auth.continue')}
               </Button>
@@ -506,7 +506,7 @@ export default function AuthScreen({ onAuthSuccess, onStartAsGuest }: AuthScreen
               <Button
                 onClick={handleVerify}
                 disabled={loading}
-                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                className="w-full bg-gray-500 hover:bg-gray-600 text-white"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
                 {t('auth.createAccountBtn')}

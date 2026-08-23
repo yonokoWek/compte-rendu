@@ -22,7 +22,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     // Auth
     'auth.createAccount': 'Créer un compte',
     'auth.login': 'Se connecter',
-    'auth.whatsapp': 'WhatsApp',
+    'auth.telegram': 'Telegram',
     'auth.email': 'Email',
     'auth.phonePlaceholder': '+243 8XX XXX XXX',
     'auth.emailPlaceholder': 'email@exemple.com',
@@ -237,7 +237,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     // Auth
     'auth.createAccount': 'Create Account',
     'auth.login': 'Log In',
-    'auth.whatsapp': 'WhatsApp',
+    'auth.telegram': 'Telegram',
     'auth.email': 'Email',
     'auth.phonePlaceholder': '+243 8XX XXX XXX',
     'auth.emailPlaceholder': 'email@example.com',
