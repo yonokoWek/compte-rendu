@@ -684,3 +684,25 @@ Stage Summary:
 - PDF: Fully respects per-category display settings and custom colors
 - Lint passes clean, no browser errors
 
+
+---
+Task ID: fix-render-deploy
+Agent: Main
+Task: Fix Render deployment not loading (page blanche)
+
+Work Log:
+- Investigated all recent code changes (report, profile, activities, page.tsx)
+- Ran local build — passed with zero errors
+- Checked git history of next.config.ts — found output: "standalone" was removed in commit 540bddd
+- Dockerfile expected .next/standalone/server.js but build no longer produced it
+- Restored output: "standalone" + serverExternalPackages: ["pg"] to next.config.ts
+- Updated Dockerfile to copy .next/static and public/ (required for standalone mode)
+- Removed docker-entrypoint.sh dependency (prisma db push at runtime was risky)
+- Added HOSTNAME=0.0.0.0 for proper container binding
+- Verified build produces server.js correctly
+- Pushed to GitHub (commit 7e62ec7)
+
+Stage Summary:
+- Root cause: missing `output: "standalone"` in next.config.ts caused Docker container to fail on startup
+- Fix deployed: Render will auto-redeploy from the push
+- No schema changes, no code logic changes
