@@ -10,12 +10,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Contact et type requis' }, { status: 400 });
     }
 
-    if (contactType !== 'whatsapp' && contactType !== 'email') {
+    if (contactType !== 'telegram' && contactType !== 'email') {
       return NextResponse.json({ error: 'Type invalide' }, { status: 400 });
     }
 
     let normalizedContact: string;
-    if (contactType === 'whatsapp') {
+    if (contactType === 'telegram') {
       normalizedContact = normalizePhone(contact);
       const digitsOnly = normalizedContact.replace(/\D/g, '');
       if (digitsOnly.length < 9) {

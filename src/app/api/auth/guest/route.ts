@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const user = await db.user.create({
       data: {
         contact: `guest:${deviceId}`,
-        contactType: 'whatsapp',
+        contactType: 'telegram',
         name: '',
         pin: '',
         isGuest: true,
