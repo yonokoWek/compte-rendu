@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '@/store/app-store';
 import { useT } from '@/lib/use-t';
 import { LANGUAGES } from '@/lib/i18n';
@@ -17,11 +17,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Save, Palette, Globe } from 'lucide-react';
+import { User, Save, Palette, Globe, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '@/lib/api';
 import ThemePicker from '@/components/theme-picker';
 import type { Lang } from '@/lib/i18n';
+
+const PDF_COLOR_KEY = 'cr_pdf_color';
+const DEFAULT_PDF_COLOR = '#1e3a5f';
+
+const PDF_COLOR_PRESETS = [
+  { label: 'Bleu foncé', value: '#1e3a5f' },
+  { label: 'Vert forêt', value: '#14532d' },
+  { label: 'Bordeaux', value: '#7f1d1d' },
+  { label: 'Violet', value: '#5b21b6' },
+  { label: 'Anthracite', value: '#374151' },
+  { label: 'Teal', value: '#115e59' },
+  { label: 'Orange brûlé', value: '#9a3412' },
+];
 
 export default function ProfileDialog() {
   const open = useAppStore((s) => s.profileDialogOpen);
@@ -36,11 +49,14 @@ export default function ProfileDialog() {
     queryFn: () => authFetch('/api/profile').then((r) => r.json()),
   });
 
-  const [firstName, setFirstName] = React.useState('');
-  const [lastName, setLastName] = React.useState('');
-  const [assembly, setAssembly] = React.useState('');
-  const [mentor, setMentor] = React.useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [assembly, setAssembly] = useState('');
+  const [mentor, setMentor] = useState('');
+  const [pdfColor, setPdfColor] = useState(DEFAULT_PDF_COLOR);
+  const [saving, setSaving] = useState(false);
 
+  // Populate fields when profile data loads
   React.useEffect(() => {
     if (profile) {
       setFirstName(profile.firstName || '');
@@ -50,18 +66,40 @@ export default function ProfileDialog() {
     }
   }, [profile]);
 
-  const saveProfile = useMutation({
-    mutationFn: (data: { firstName: string; lastName: string; assembly: string; mentor: string }) =>
-      authFetch('/api/profile', {
+  // Load PDF color from localStorage on mount
+  React.useEffect(() => {
+    const saved = localStorage.getItem(PDF_COLOR_KEY);
+    if (saved) setPdfColor(saved);
+  }, []);
+
+  const handlePdfColorChange = (color: string) => {
+    setPdfColor(color);
+    localStorage.setItem(PDF_COLOR_KEY, color);
+  };
+
+  // Simple, reliable save handler — no react-query mutation
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const res = await authFetch('/api/profile', {
         method: 'PUT',
-        body: JSON.stringify(data),
-      }).then((r) => r.json()),
-    onSuccess: () => {
+        body: JSON.stringify({ firstName, lastName, assembly, mentor }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      // PDF color is already saved to localStorage in handlePdfColorChange
+      // Theme color is handled by ThemePicker component
+
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      toast.success('Profil enregistré ✓');
       setOpen(false);
-      toast.success(t('profile.saved'));
-    },
-  });
+    } catch (err) {
+      console.error('Profile save error:', err);
+      toast.error('Erreur lors de l\'enregistrement. Vérifiez votre connexion.');
+    } finally {
+      setSaving(false);
+    }
+  }, [firstName, lastName, assembly, mentor, queryClient, setOpen]);
 
   const handleLanguageChange = React.useCallback(async (newLang: string) => {
     const lang = newLang as Lang;
@@ -128,15 +166,46 @@ export default function ProfileDialog() {
             />
           </div>
           <Button
-            onClick={() =>
-              saveProfile.mutate({ firstName, lastName, assembly, mentor })
-            }
-            disabled={saveProfile.isPending}
-            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white"
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white font-semibold"
           >
-            <Save className="h-4 w-4 mr-2" />
-            {t('profile.save')}
+            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
+
+          <Separator />
+
+          {/* PDF Theme Color section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[var(--theme-primary)]" />
+              <h4 className="text-sm font-semibold">Couleur du PDF</h4>
+            </div>
+            <p className="text-[10px] text-gray-500">Choisissez la couleur principale du compte rendu PDF</p>
+            <div className="flex flex-wrap gap-2">
+              {PDF_COLOR_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => handlePdfColorChange(preset.value)}
+                  className={`w-8 h-8 rounded-lg border-2 transition-all ${pdfColor === preset.value ? 'border-gray-900 scale-110 shadow-md' : 'border-transparent hover:border-gray-300'}`}
+                  style={{ backgroundColor: preset.value }}
+                  title={preset.label}
+                />
+              ))}
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="color"
+                  value={pdfColor}
+                  onChange={(e) => handlePdfColorChange(e.target.value)}
+                  className="w-8 h-8 rounded-lg cursor-pointer border-2 border-dashed border-gray-300 p-0 bg-transparent"
+                  title="Couleur personnalisée"
+                />
+              </label>
+            </div>
+          </div>
 
           <Separator />
 

@@ -201,20 +201,22 @@ export default function CompteRenduTab() {
 
   const getRowTotal = useCallback((catId: string) => columns.reduce((s, col) => s + getCellValue(catId, col), 0), [columns, getCellValue]);
 
-  const personalCategories = useMemo(() => categories.filter((c) => c.isPersonal && c.unit === 'minutes'), [categories]);
+  // Total = ALL displayed minute-based activities (matching PDF behavior)
+  const minuteCategories = useMemo(() => categories.filter((c) => c.unit === 'minutes'), [categories]);
   const getPersonalTotal = useCallback((col?: typeof columns[0]) => {
-    if (col) return personalCategories.reduce((s, cat) => s + getCellValue(cat.id, col), 0);
-    return columns.reduce((s, col) => s + personalCategories.reduce((s2, cat) => s2 + getCellValue(cat.id, col), 0), 0);
-  }, [columns, personalCategories, getCellValue]);
+    if (col) return minuteCategories.reduce((s, cat) => s + getCellValue(cat.id, col), 0);
+    return columns.reduce((s, col) => s + minuteCategories.reduce((s2, cat) => s2 + getCellValue(cat.id, col), 0), 0);
+  }, [columns, minuteCategories, getCellValue]);
 
   // PDF generation
   const [pdfLoading, setPdfLoading] = useState(false);
   const handleExportPDF = async () => {
     setPdfLoading(true);
     try {
+      const pdfColor = localStorage.getItem('cr_pdf_color') || '#1e3a5f';
       const reportRes = await authFetch('/api/report', {
         method: 'POST',
-        body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd') }),
+        body: JSON.stringify({ startDate: format(period.startDate, 'yyyy-MM-dd'), endDate: format(period.endDate, 'yyyy-MM-dd'), pdfColor }),
       });
       const reportData = await reportRes.json();
       await generateClientPDF(

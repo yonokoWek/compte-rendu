@@ -125,8 +125,12 @@ function AppContent() {
 
   // Start as guest
   const handleStartAsGuest = () => {
-    const deviceId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
-    localStorage.setItem('cr_device_id', deviceId);
+    // Reuse existing device ID to recover the same guest account
+    let deviceId = localStorage.getItem('cr_device_id');
+    if (!deviceId) {
+      deviceId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      localStorage.setItem('cr_device_id', deviceId);
+    }
     handleGuestLogin(deviceId);
   };
 
@@ -157,7 +161,7 @@ function AppContent() {
         })
         .catch(() => {
           localStorage.removeItem('cr_session_token');
-          localStorage.removeItem('cr_device_id');
+          // Do NOT remove cr_device_id - it's needed to recover the guest account
         })
         .finally(finish);
     } else {
@@ -265,7 +269,7 @@ function AppContent() {
       }).catch(() => {});
     }
     localStorage.removeItem('cr_session_token');
-    localStorage.removeItem('cr_device_id');
+    // Keep cr_device_id for potential re-login as same guest
     setIsGuest(false);
     setSessionToken(null);
     setThemeColor('orange');
