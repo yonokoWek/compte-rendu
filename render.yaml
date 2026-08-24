@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: compte-rendu
+    runtime: node
+    buildCommand: bun install && ./node_modules/.bin/prisma generate && ./node_modules/.bin/next build
+    startCommand: ./node_modules/.bin/next start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
