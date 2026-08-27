@@ -1,0 +1,567 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import React, { useState } from 'react';
+     4→     4→import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+     5→     5→import { format, getDay } from 'date-fns';
+     6→     6→import { useAppStore, DAY_NAMES_SHORT, getDaysInRange } from '@/store/app-store';
+     7→     7→import { Card, CardContent } from '@/components/ui/card';
+     8→     8→import { Button } from '@/components/ui/button';
+     9→     9→import { Input } from '@/components/ui/input';
+    10→    10→import { Checkbox } from '@/components/ui/checkbox';
+    11→    11→import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+    12→    12→import {
+    13→    13→  Select,
+    14→    14→  SelectContent,
+    15→    15→  SelectItem,
+    16→    16→  SelectTrigger,
+    17→    17→  SelectValue,
+    18→    18→} from '@/components/ui/select';
+    19→    19→import {
+    20→    20→  DropdownMenu,
+    21→    21→  DropdownMenuContent,
+    22→    22→  DropdownMenuItem,
+    23→    23→  DropdownMenuTrigger,
+    24→    24→  DropdownMenuSeparator,
+    25→    25→} from '@/components/ui/dropdown-menu';
+    26→    26→import {
+    27→    27→  Plus,
+    28→    28→  Trash2,
+    29→    29→  FolderPlus,
+    30→    30→  FolderOpen,
+    31→    31→  X,
+    32→    32→  ArrowRight,
+    33→    33→  CheckSquare,
+    34→    34→  Timer,
+    35→    35→  TrendingUp,
+    36→    36→  Settings,
+    37→    37→  FileText,
+    38→    38→  Eye,
+    39→    39→  EyeOff,
+    40→    40→  List,
+    41→    41→  Layers,
+    42→    42→} from 'lucide-react';
+    43→    43→import { toast } from 'sonner';
+    44→    44→import { authFetch } from '@/lib/api';
+    45→    45→
+    46→    46→// === Report Activity Types ===
+    47→    47→interface Category {
+    48→    48→  id: string;
+    49→    49→  name: string;
+    50→    50→  unit: string;
+    51→    51→  sortOrder: number;
+    52→    52→  isPersonal: boolean;
+    53→    53→  icon: string;
+    54→    54→  pdfDisplay: string;
+    55→    55→  groupId: string | null;
+    56→    56→  group: { id: string; name: string } | null;
+    57→    57→}
+    58→    58→
+    59→    59→interface Group {
+    60→    60→  id: string;
+    61→    61→  name: string;
+    62→    62→  sortOrder: number;
+    63→    63→  pdfDisplay: string;  // "show_detail" | "show_grouped" | "hidden"
+    64→    64→  categories: Category[];
+    65→    65→}
+    66→    66→
+    67→    67→// === Custom Activity Types ===
+    68→    68→interface CustomActivity {
+    69→    69→  id: string;
+    70→    70→  name: string;
+    71→    71→  icon: string;
+    72→    72→  trackMode: string;
+    73→    73→}
+    74→    74→
+    75→    75→interface ActivityLog {
+    76→    76→  id: string;
+    77→    77→  date: string;
+    78→    78→  activityId: string;
+    79→    79→  completed: boolean;
+    80→    80→  duration: number;
+    81→    81→}
+    82→    82→
+    83→    83→const ICON_OPTIONS = [
+    84→    84→  { value: 'circle', label: '●' },
+    85→    85→  { value: 'star', label: '★' },
+    86→    86→  { value: 'heart', label: '♥' },
+    87→    87→  { value: 'flame', label: '🔥' },
+    88→    88→  { value: 'book', label: '📖' },
+    89→    89→  { value: 'cross', label: '✝' },
+    90→    90→  { value: 'check', label: '✓' },
+    91→    91→  { value: 'arrow', label: '→' },
+    92→    92→];
+    93→    93→
+    94→    94→export default function ActivitiesTab() {
+    95→    95→  const period = useAppStore((s) => s.period);
+    96→    96→  const queryClient = useQueryClient();
+    97→    97→
+    98→    98→  // === Report Activity Management State ===
+    99→    99→  const [newGroupName, setNewGroupName] = useState('');
+   100→   100→  const [newCatName, setNewCatName] = useState('');
+   101→   101→  const [newCatUnit, setNewCatUnit] = useState('minutes');
+   102→   102→  const [newCatPersonal, setNewCatPersonal] = useState(true);
+   103→   103→
+   104→   104→  // === Custom Activity State ===
+   105→   105→  const [newName, setNewName] = useState('');
+   106→   106→  const [newIcon, setNewIcon] = useState('circle');
+   107→   107→  const [newTrackMode, setNewTrackMode] = useState('count');
+   108→   108→
+   109→   109→  // === Report Activity Queries & Mutations ===
+   110→   110→  const { data: catData } = useQuery<{
+   111→   111→    categories: Category[];
+   112→   112→    groups: Group[];
+   113→   113→  }>({
+   114→   114→    queryKey: ['categories'],
+   115→   115→    queryFn: () => authFetch('/api/categories').then((r) => r.json()),
+   116→   116→  });
+   117→   117→  const categories = catData?.categories || [];
+   118→   118→  const groups = catData?.groups || [];
+   119→   119→
+   120→   120→  const addCategory = useMutation({
+   121→   121→    mutationFn: (data: { type: 'category'; name: string; unit: string; isPersonal: boolean; groupId?: string }) =>
+   122→   122→      authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
+   123→   123→    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewCatName(''); },
+   124→   124→  });
+   125→   125→
+   126→   126→  const deleteCategory = useMutation({
+   127→   127→    mutationFn: (id: string) => authFetch(`/api/categories?type=category&id=${id}`, { method: 'DELETE' }),
+   128→   128→    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+   129→   129→  });
+   130→   130→
+   131→   131→  const addGroup = useMutation({
+   132→   132→    mutationFn: (name: string) =>
+   133→   133→      authFetch('/api/categories', { method: 'POST', body: JSON.stringify({ type: 'group', name }) }).then((r) => r.json()),
+   134→   134→    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewGroupName(''); toast.success('Groupe créé'); },
+   135→   135→  });
+   136→   136→
+   137→   137→  const deleteGroup = useMutation({
+   138→   138→    mutationFn: (id: string) => authFetch(`/api/categories?type=group&id=${id}`, { method: 'DELETE' }),
+   139→   139→    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Groupe supprimé'); },
+   140→   140→  });
+   141→   141→
+   142→   142→  const assignToGroup = useMutation({
+   143→   143→    mutationFn: (data: { type: 'assign'; categoryId: string; groupId: string | null }) =>
+   144→   144→      authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) }).then((r) => r.json()),
+   145→   145→    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Activité déplacée'); },
+   146→   146→  });
+   147→   147→
+   148→   148→  const updateGroupPdf = useMutation({
+   149→   149→    mutationFn: (data: { type: 'group'; id: string; pdfDisplay: string }) =>
+   150→   150→      authFetch('/api/categories', { method: 'PUT', body: JSON.stringify(data) }).then((r) => r.json()),
+   151→   151→    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Affichage PDF mis à jour'); },
+   152→   152→  });
+   153→   153→
+   154→   154→  const updateCategoryPdf = useMutation({
+   155→   155→    mutationFn: (data: { type: 'category'; id: string; pdfDisplay: string }) =>
+   156→   156→      authFetch('/api/categories', { method: 'PUT', body: JSON.stringify(data) }).then((r) => r.json()),
+   157→   157→    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); toast.success('Affichage PDF mis à jour'); },
+   158→   158→  });
+   159→   159→
+   160→   160→  // === Custom Activity Queries & Mutations ===
+   161→   161→  const { data: activities = [] } = useQuery<CustomActivity[]>({
+   162→   162→    queryKey: ['activities'],
+   163→   163→    queryFn: () => authFetch('/api/activities').then((r) => r.json()),
+   164→   164→  });
+   165→   165→
+   166→   166→  const { data: logs = [] } = useQuery<ActivityLog[]>({
+   167→   167→    queryKey: ['activity-logs', period.startDate, period.endDate],
+   168→   168→    queryFn: () =>
+   169→   169→      authFetch(
+   170→   170→        `/api/activity-logs?startDate=${format(period.startDate, 'yyyy-MM-dd')}&endDate=${format(period.endDate, 'yyyy-MM-dd')}`
+   171→   171→      ).then((r) => r.json()),
+   172→   172→  });
+   173→   173→
+   174→   174→  const addActivity = useMutation({
+   175→   175→    mutationFn: (data: { name: string; icon: string; trackMode: string }) =>
+   176→   176→      authFetch('/api/activities', {
+   177→   177→        method: 'POST',
+   178→   178→        body: JSON.stringify(data),
+   179→   179→      }).then((r) => r.json()),
+   180→   180→    onSuccess: () => {
+   181→   181→      queryClient.invalidateQueries({ queryKey: ['activities'] });
+   182→   182→      setNewName('');
+   183→   183→    },
+   184→   184→  });
+   185→   185→
+   186→   186→  const deleteActivity = useMutation({
+   187→   187→    mutationFn: (id: string) => authFetch(`/api/activities?id=${id}`, { method: 'DELETE' }),
+   188→   188→    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activities'] }),
+   189→   189→  });
+   190→   190→
+   191→   191→  const toggleLog = useMutation({
+   192→   192→    mutationFn: (data: { date: string; activityId: string; completed: boolean }) =>
+   193→   193→      authFetch('/api/activity-logs', {
+   194→   194→        method: 'POST',
+   195→   195→        body: JSON.stringify(data),
+   196→   196→      }).then((r) => r.json()),
+   197→   197→    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['activity-logs'] }),
+   198→   198→  });
+   199→   199→
+   200→   200→  // === Custom Activity Helpers ===
+   201→   201→  const logMap: Record<string, boolean> = {};
+   202→   202→  for (const log of logs) {
+   203→   203→    logMap[`${log.date}_${log.activityId}`] = log.completed;
+   204→   204→  }
+   205→   205→
+   206→   206→  const days = getDaysInRange(period.startDate, period.endDate);
+   207→   207→
+   208→   208→  const getCompletionRate = (activityId: string) => {
+   209→   209→    const total = days.length;
+   210→   210→    const completed = days.filter((d) => logMap[`${format(d, 'yyyy-MM-dd')}_${activityId}`]).length;
+   211→   211→    return total > 0 ? Math.round((completed / total) * 100) : 0;
+   212→   212→  };
+   213→   213→
+   214→   214→  return (
+   215→   215→    <div className="max-w-4xl mx-auto p-4 space-y-4">
+   216→   216→      <Tabs defaultValue="report">
+   217→   217→        <TabsList className="w-full">
+   218→   218→          <TabsTrigger value="report" className="flex-1 gap-1.5">
+   219→   219→            <Settings className="h-3.5 w-3.5" />
+   220→   220→            <span className="hidden sm:inline">Activités de rapport</span>
+   221→   221→            <span className="sm:hidden">Rapport</span>
+   222→   222→          </TabsTrigger>
+   223→   223→          <TabsTrigger value="daily" className="flex-1 gap-1.5">
+   224→   224→            <CheckSquare className="h-3.5 w-3.5" />
+   225→   225→            <span className="hidden sm:inline">Suivi quotidien</span>
+   226→   226→            <span className="sm:hidden">Quotidien</span>
+   227→   227→          </TabsTrigger>
+   228→   228→        </TabsList>
+   229→   229→
+   230→   230→        {/* ===== Sub-tab 1: Activités de rapport ===== */}
+   231→   231→        <TabsContent value="report">
+   232→   232→          <div className="space-y-4">
+   233→   233→            <p className="text-xs text-gray-500">
+   234→   234→              Gérez les groupes et activités du compte rendu.
+   235→   235→              Les options d&apos;affichage PDF se configurent au niveau du groupe.
+   236→   236→            </p>
+   237→   237→
+   238→   238→            {/* Create group */}
+   239→   239→            <Card className="border-[var(--theme-primary)]">
+   240→   240→              <CardContent className="p-3 space-y-2">
+   241→   241→                <h4 className="text-xs font-semibold text-gray-700">Créer un groupe</h4>
+   242→   242→                <div className="flex gap-2">
+   243→   243→                  <Input placeholder="Nom du groupe" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="text-sm flex-1" />
+   244→   244→                  <Button onClick={() => { if (newGroupName.trim()) addGroup.mutate(newGroupName); }} disabled={!newGroupName.trim() || addGroup.isPending} size="sm" className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs">
+   245→   245→                    <FolderPlus className="h-3 w-3 mr-1" /> Créer
+   246→   246→                  </Button>
+   247→   247→                </div>
+   248→   248→              </CardContent>
+   249→   249→            </Card>
+   250→   250→
+   251→   251→            {/* Existing groups */}
+   252→   252→            {groups.length > 0 && (
+   253→   253→              <div className="space-y-2">
+   254→   254→                <h4 className="text-xs font-semibold text-gray-700">Groupes existants</h4>
+   255→   255→                <div className="max-h-96 overflow-y-auto space-y-2">
+   256→   256→                  {groups.map((group) => (
+   257→   257→                    <Card key={group.id} className="border-l-4 border-l-[var(--theme-primary)]">
+   258→   258→                      <CardContent className="p-3">
+   259→   259→                        <div className="flex items-center justify-between mb-2">
+   260→   260→                          <div className="flex items-center gap-2">
+   261→   261→                            <FolderOpen className="h-4 w-4 text-[var(--theme-primary)]" />
+   262→   262→                            <span className="text-sm font-semibold">{group.name}</span>
+   263→   263→                            <span className="text-[10px] text-gray-400">({group.categories.length} activités)</span>
+   264→   264→                          </div>
+   265→   265→                          <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => deleteGroup.mutate(group.id)}>
+   266→   266→                            <Trash2 className="h-3 w-3" />
+   267→   267→                          </Button>
+   268→   268→                        </div>
+   269→   269→                        <div className="flex flex-wrap gap-1">
+   270→   270→                          {group.categories.map((cat) => (
+   271→   271→                            <span key={cat.id} className="inline-flex items-center gap-1 text-[10px] bg-[var(--theme-primary-light)] text-[var(--theme-primary-hover)] px-2 py-0.5 rounded-full">
+   272→   272→                              {cat.name}
+   273→   273→                              <button onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })} className="hover:text-red-500">
+   274→   274→                                <X className="h-2.5 w-2.5" />
+   275→   275→                              </button>
+   276→   276→                            </span>
+   277→   277→                          ))}
+   278→   278→                          {group.categories.length === 0 && (
+   279→   279→                            <span className="text-[10px] text-gray-400 italic">Aucune activité assignée</span>
+   280→   280→                          )}
+   281→   281→                        </div>
+   282→   282→                        {/* PDF display option for group */}
+   283→   283→                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+   284→   284→                          <Select
+   285→   285→                            value={group.pdfDisplay || 'show_detail'}
+   286→   286→                            onValueChange={(val) =>
+   287→   287→                              updateGroupPdf.mutate({
+   288→   288→                                type: 'group',
+   289→   289→                                id: group.id,
+   290→   290→                                pdfDisplay: val,
+   291→   291→                              })
+   292→   292→                            }
+   293→   293→                          >
+   294→   294→                            <SelectTrigger className="h-7 text-[10px] flex-1 min-w-0">
+   295→   295→                              {(group.pdfDisplay || 'show_detail') === 'hidden' ? <EyeOff className="h-3 w-3 mr-1" /> : (group.pdfDisplay === 'show_grouped' ? <Layers className="h-3 w-3 mr-1" /> : <List className="h-3 w-3 mr-1" />)}
+   296→   296→                              <SelectValue />
+   297→   297→                            </SelectTrigger>
+   298→   298→                            <SelectContent>
+   299→   299→                              <SelectItem value="show_detail">
+   300→   300→                                <span className="flex items-center gap-1"><List className="h-3 w-3" /> Affiché en détail</span>
+   301→   301→                              </SelectItem>
+   302→   302→                              <SelectItem value="show_grouped">
+   303→   303→                                <span className="flex items-center gap-1"><Layers className="h-3 w-3" /> Affiché groupé</span>
+   304→   304→                              </SelectItem>
+   305→   305→                              <SelectItem value="hidden">
+   306→   306→                                <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> Masqué sur PDF</span>
+   307→   307→                              </SelectItem>
+   308→   308→                            </SelectContent>
+   309→   309→                          </Select>
+   310→   310→                        </div>
+   311→   311→                      </CardContent>
+   312→   312→                    </Card>
+   313→   313→                  ))}
+   314→   314→                </div>
+   315→   315→              </div>
+   316→   316→            )}
+   317→   317→
+   318→   318→            {/* Add new category */}
+   319→   319→            <Card className="border-gray-200">
+   320→   320→              <CardContent className="p-3 space-y-2">
+   321→   321→                <h4 className="text-xs font-semibold text-gray-700">Ajouter une activité</h4>
+   322→   322→                <div className="flex gap-2">
+   323→   323→                  <Input placeholder="Nom de l'activité" value={newCatName} onChange={(e) => setNewCatName(e.target.value)} className="text-sm flex-1" />
+   324→   324→                  <Select value={newCatUnit} onValueChange={setNewCatUnit}>
+   325→   325→                    <SelectTrigger className="w-24 h-9 text-xs"><SelectValue /></SelectTrigger>
+   326→   326→                    <SelectContent>
+   327→   327→                      <SelectItem value="minutes">Minutes</SelectItem>
+   328→   328→                      <SelectItem value="count">Compté</SelectItem>
+   329→   329→                    </SelectContent>
+   330→   330→                  </Select>
+   331→   331→                </div>
+   332→   332→                <div className="flex items-center gap-2">
+   333→   333→                  <label className="text-[10px] text-gray-500 flex items-center gap-1">
+   334→   334→                    <input type="checkbox" checked={newCatPersonal} onChange={(e) => setNewCatPersonal(e.target.checked)} className="rounded" />
+   335→   335→                    Personnel (compté dans le total)
+   336→   336→                  </label>
+   337→   337→                </div>
+   338→   338→                <Button onClick={() => { if (newCatName.trim()) addCategory.mutate({ type: 'category', name: newCatName, unit: newCatUnit, isPersonal: newCatPersonal }); }} disabled={!newCatName.trim()} size="sm" className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs">
+   339→   339→                  <Plus className="h-3 w-3 mr-1" /> Ajouter
+   340→   340→                </Button>
+   341→   341→              </CardContent>
+   342→   342→            </Card>
+   343→   343→
+   344→   344→            {/* All categories with assign/delete + PDF options (ungrouped only) */}
+   345→   345→            <div className="space-y-2">
+   346→   346→              <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+   347→   347→                <FileText className="h-3.5 w-3.5" />
+   348→   348→                Toutes les activités
+   349→   349→              </h4>
+   350→   350→              <div className="max-h-[500px] overflow-y-auto space-y-1 pr-1">
+   351→   351→                {categories.map((cat) => {
+   352→   352→                  return (
+   353→   353→                  <div key={cat.id} className="rounded-lg border border-gray-100 bg-white hover:bg-gray-50">
+   354→   354→                    <div className="flex items-center justify-between p-2">
+   355→   355→                      <div className="flex-1 min-w-0">
+   356→   356→                        <div className="flex items-center gap-1.5">
+   357→   357→                          <p className="text-xs font-medium truncate">{cat.name}</p>
+   358→   358→                        </div>
+   359→   359→                        <p className="text-[10px] text-gray-400">
+   360→   360→                          {cat.unit === 'minutes' ? 'min' : 'Part.'}
+   361→   361→                          {cat.isPersonal ? ' • Personnel' : ''}
+   362→   362→                          {cat.group ? ` • 📁 ${cat.group.name}` : ''}
+   363→   363→                        </p>
+   364→   364→                      </div>
+   365→   365→                      <div className="flex items-center gap-1 shrink-0">
+   366→   366→                        <DropdownMenu>
+   367→   367→                          <DropdownMenuTrigger asChild>
+   368→   368→                            <Button variant="ghost" size="sm" className="h-6 w-6 text-gray-400">
+   369→   369→                              <ArrowRight className="h-3 w-3" />
+   370→   370→                            </Button>
+   371→   371→                          </DropdownMenuTrigger>
+   372→   372→                          <DropdownMenuContent align="end">
+   373→   373→                            {groups.map((g) => (
+   374→   374→                              <DropdownMenuItem key={g.id} onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: g.id })}>
+   375→   375→                                <FolderOpen className="h-3 w-3 mr-2" />
+   376→   376→                                {g.name}
+   377→   377→                                {cat.groupId === g.id && ' ✓'}
+   378→   378→                              </DropdownMenuItem>
+   379→   379→                            ))}
+   380→   380→                            <DropdownMenuSeparator />
+   381→   381→                            <DropdownMenuItem onClick={() => assignToGroup.mutate({ type: 'assign', categoryId: cat.id, groupId: null })}>
+   382→   382→                              <X className="h-3 w-3 mr-2" />
+   383→   383→                              Retirer du groupe
+   384→   384→                            </DropdownMenuItem>
+   385→   385→                          </DropdownMenuContent>
+   386→   386→                        </DropdownMenu>
+   387→   387→                        <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-red-500" onClick={() => { deleteCategory.mutate(cat.id); toast.success('Activité supprimée'); }}>
+   388→   388→                          <Trash2 className="h-3 w-3" />
+   389→   389→                        </Button>
+   390→   390→                      </div>
+   391→   391→                    </div>
+   392→   392→                    {/* PDF show/hide - only for ungrouped categories */}
+   393→   393→                    {!cat.groupId && (
+   394→   394→                    <div className="flex items-center gap-2 px-2 pb-2 border-t border-gray-50">
+   395→   395→                      <Select
+   396→   396→                        value={cat.pdfDisplay === 'hidden' ? 'hidden' : 'show'}
+   397→   397→                        onValueChange={(val) =>
+   398→   398→                          updateCategoryPdf.mutate({
+   399→   399→                            type: 'category',
+   400→   400→                            id: cat.id,
+   401→   401→                            pdfDisplay: val,
+   402→   402→                          })
+   403→   403→                        }
+   404→   404→                      >
+   405→   405→                        <SelectTrigger className="h-7 text-[10px] flex-1 min-w-0">
+   406→   406→                          {cat.pdfDisplay === 'hidden' ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+   407→   407→                          <SelectValue />
+   408→   408→                        </SelectTrigger>
+   409→   409→                        <SelectContent>
+   410→   410→                          <SelectItem value="show">
+   411→   411→                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> Affiché</span>
+   412→   412→                          </SelectItem>
+   413→   413→                          <SelectItem value="hidden">
+   414→   414→                            <span className="flex items-center gap-1"><EyeOff className="h-3 w-3" /> Masqué</span>
+   415→   415→                          </SelectItem>
+   416→   416→                        </SelectContent>
+   417→   417→                      </Select>
+   418→   418→                    </div>
+   419→   419→                    )}
+   420→   420→                  </div>
+   421→   421→                  );
+   422→   422→                })}
+   423→   423→              </div>
+   424→   424→            </div>
+   425→   425→          </div>
+   426→   426→        </TabsContent>
+   427→   427→
+   428→   428→        {/* ===== Sub-tab 2: Suivi quotidien ===== */}
+   429→   429→        <TabsContent value="daily">
+   430→   430→          <div className="space-y-4">
+   431→   431→            {/* Add activity */}
+   432→   432→            <Card className="border-[var(--theme-primary)]">
+   433→   433→              <CardContent className="p-3 space-y-2">
+   434→   434→                <Input
+   435→   435→                  placeholder="Nouvelle activité (ex: Proclamation, Lecture Biblique...)"
+   436→   436→                  value={newName}
+   437→   437→                  onChange={(e) => setNewName(e.target.value)}
+   438→   438→                  onKeyDown={(e) => {
+   439→   439→                    if (e.key === 'Enter' && newName.trim()) {
+   440→   440→                      addActivity.mutate({ name: newName, icon: newIcon, trackMode: newTrackMode });
+   441→   441→                    }
+   442→   442→                  }}
+   443→   443→                  className="text-sm"
+   444→   444→                />
+   445→   445→                <div className="flex gap-2">
+   446→   446→                  <Select value={newTrackMode} onValueChange={setNewTrackMode}>
+   447→   447→                    <SelectTrigger className="flex-1 h-8 text-xs">
+   448→   448→                      <SelectValue />
+   449→   449→                    </SelectTrigger>
+   450→   450→                    <SelectContent>
+   451→   451→                      <SelectItem value="count">
+   452→   452→                        <span className="flex items-center gap-1"><CheckSquare className="h-3 w-3" /> Compté</span>
+   453→   453→                      </SelectItem>
+   454→   454→                      <SelectItem value="timer">
+   455→   455→                        <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> Chrono</span>
+   456→   456→                      </SelectItem>
+   457→   457→                    </SelectContent>
+   458→   458→                  </Select>
+   459→   459→                  <Select value={newIcon} onValueChange={setNewIcon}>
+   460→   460→                    <SelectTrigger className="w-16 h-8 text-xs">
+   461→   461→                      <SelectValue />
+   462→   462→                    </SelectTrigger>
+   463→   463→                    <SelectContent>
+   464→   464→                      {ICON_OPTIONS.map((opt) => (
+   465→   465→                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+   466→   466→                      ))}
+   467→   467→                    </SelectContent>
+   468→   468→                  </Select>
+   469→   469→                  <Button
+   470→   470→                    onClick={() => {
+   471→   471→                      if (newName.trim()) {
+   472→   472→                        addActivity.mutate({ name: newName, icon: newIcon, trackMode: newTrackMode });
+   473→   473→                        toast.success('Activité ajoutée');
+   474→   474→                      }
+   475→   475→                    }}
+   476→   476→                    disabled={!newName.trim() || addActivity.isPending}
+   477→   477→                    className="bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white text-xs shrink-0"
+   478→   478→                  >
+   479→   479→                    <Plus className="h-3 w-3 mr-1" />
+   480→   480→                    Ajouter
+   481→   481→                  </Button>
+   482→   482→                </div>
+   483→   483→              </CardContent>
+   484→   484→            </Card>
+   485→   485→
+   486→   486→            {/* Activity list */}
+   487→   487→            {activities.length === 0 && (
+   488→   488→              <div className="text-center py-12 text-gray-400">
+   489→   489→                <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
+   490→   490→                <p className="text-sm">Aucune activité créée</p>
+   491→   491→                <p className="text-xs mt-1">Ajoutez vos activités à suivre</p>
+   492→   492→              </div>
+   493→   493→            )}
+   494→   494→
+   495→   495→            <div className="space-y-3">
+   496→   496→              {activities.map((activity) => {
+   497→   497→                const rate = getCompletionRate(activity.id);
+   498→   498→                const iconObj = ICON_OPTIONS.find((i) => i.value === activity.icon);
+   499→   499→                return (
+   500→   500→                  <Card key={activity.id}>
+   501→   501→                    <CardContent className="p-3">
+   502→   502→                      <div className="flex items-center justify-between mb-2">
+   503→   503→                        <div className="flex items-center gap-2">
+   504→   504→                          <span className="text-lg">{iconObj?.label || '●'}</span>
+   505→   505→                          <div>
+   506→   506→                            <p className="text-sm font-medium">{activity.name}</p>
+   507→   507→                            <p className="text-[10px] text-gray-400">
+   508→   508→                              {activity.trackMode === 'count' ? 'Compté' : 'Chrono'} • {rate}%
+   509→   509→                            </p>
+   510→   510→                          </div>
+   511→   511→                        </div>
+   512→   512→                        <div className="flex items-center gap-2">
+   513→   513→                          {/* Progress bar */}
+   514→   514→                          <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+   515→   515→                            <div
+   516→   516→                              className="h-full bg-[var(--theme-primary)] rounded-full transition-all"
+   517→   517→                              style={{ width: `${rate}%` }}
+   518→   518→                            />
+   519→   519→                          </div>
+   520→   520→                          <Button
+   521→   521→                            variant="ghost"
+   522→   522→                            size="icon"
+   523→   523→                            className="h-6 w-6 text-gray-400 hover:text-red-500"
+   524→   524→                            onClick={() => deleteActivity.mutate(activity.id)}
+   525→   525→                          >
+   526→   526→                            <Trash2 className="h-3 w-3" />
+   527→   527→                          </Button>
+   528→   528→                        </div>
+   529→   529→                      </div>
+   530→   530→
+   531→   531→                      {/* Daily checkoff */}
+   532→   532→                      <div className="flex gap-1.5 overflow-x-auto pb-1">
+   533→   533→                        {days.map((day) => {
+   534→   534→                          const dateStr = format(day, 'yyyy-MM-dd');
+   535→   535→                          const dayIndex = getDay(day);
+   536→   536→                          const adjustedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+   537→   537→                          const isChecked = logMap[`${dateStr}_${activity.id}`] || false;
+   538→   538→
+   539→   539→                          return (
+   540→   540→                            <button
+   541→   541→                              key={dateStr}
+   542→   542→                              onClick={() => toggleLog.mutate({ date: dateStr, activityId: activity.id, completed: !isChecked })}
+   543→   543→                              className={`flex flex-col items-center min-w-[36px] p-1 rounded-lg text-[10px] transition-colors ${
+   544→   544→                                isChecked
+   545→   545→                                  ? 'bg-[var(--theme-primary)] text-white'
+   546→   546→                                  : 'bg-gray-100 text-gray-600 hover:bg-[var(--theme-primary-light)]'
+   547→   547→                              }`}
+   548→   548→                            >
+   549→   549→                              <span className="font-semibold">{DAY_NAMES_SHORT[adjustedIndex]}</span>
+   550→   550→                              <span>{format(day, 'd')}</span>
+   551→   551→                              {isChecked && <CheckSquare className="h-3 w-3 mt-0.5" />}
+   552→   552→                            </button>
+   553→   553→                          );
+   554→   554→                        })}
+   555→   555→                      </div>
+   556→   556→                    </CardContent>
+   557→   557→                  </Card>
+   558→   558→                );
+   559→   559→              })}
+   560→   560→            </div>
+   561→   561→          </div>
+   562→   562→        </TabsContent>
+   563→   563→      </Tabs>
+   564→   564→    </div>
+   565→   565→  );
+   566→   566→}
+   567→   567→
