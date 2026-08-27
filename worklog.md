@@ -727,3 +727,24 @@ Stage Summary:
 - `personalCategories` error: NOT present in current source code (confirmed via global grep)
 - Production build: 25 routes (1 static, 24 dynamic), clean
 - server.mjs: port binds immediately, Next.js loads in background, health check works
+
+---
+Task ID: fix-generate-pdf
+Agent: Main
+Task: Rewrite /api/generate-pdf to use jspdf + jspdf-autotable instead of playwright
+
+Work Log:
+- Analyzed: html2canvas CANNOT work server-side (needs DOM), so server-side PDF must use jspdf programmatically
+- Discovered current PDF flow is client-side: /api/report -> HTML -> client-pdf.ts (jspdf+html2canvas in browser)
+- The /api/generate-pdf route was an unused Playwright-based alternative
+- Installed jspdf-autotable@5.0.8 (lightweight table plugin, ~50KB)
+- Rewrote generate-pdf/route.ts to accept {startDate, endDate, pdfColor} and generate PDF server-side
+- Replicated exact visual rendering: theme colors, groups (summed), ungrouped, zebra stripes, totals, bible section, finances, footer boxes
+- Build: 26 routes, 0 errors
+- Lint: only pre-existing shadcn/ui warnings (carousel.tsx, use-mobile.ts)
+
+Stage Summary:
+- NEW dependency: jspdf-autotable@5.0.8 added to package.json
+- generate-pdf/route.ts: fully rewritten with jspdf + jspdf-autotable, no playwright
+- Same visual output: colored headers, group rows, zebra stripes, total row (amber), bible section (purple), finances (green/red), footer boxes
+- Build passes cleanly
