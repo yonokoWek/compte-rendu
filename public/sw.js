@@ -1,7 +1,8 @@
 // Compte Rendu Service Worker
 // Handles offline caching and sync queueing
 
-const CACHE_NAME = 'cr-v1';
+// BUMP THIS on every deployment to bust cached JS/CSS
+const CACHE_NAME = 'cr-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -9,7 +10,7 @@ const STATIC_ASSETS = [
   '/logo.svg',
 ];
 
-// Install: pre-cache static assets
+// Install: pre-cache static assets only
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -19,19 +20,16 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: delete ALL old caches (aggressive bust)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      )
-    )
+      Promise.all(keys.map((k) => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: serve from cache, update in background
+// Fetch handler
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -46,37 +44,34 @@ self.addEventListener('fetch', (event) => {
     if (!navigator.onLine) {
       event.respondWith(queueOfflineRequest(request));
     }
-    // When online, let the request pass through normally (don't call event.respondWith)
     return;
   }
 
-  // API requests: stale-while-revalidate
+  // API requests: network-first (always fresh data)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) =>
-        cache.match(request).then((cached) => {
-          const fetchPromise = fetch(request)
-            .then((response) => {
-              if (response.ok) {
-                cache.put(request, response.clone());
-              }
-              return response;
-            })
-            .catch(() => cached);
-
-          return cached || fetchPromise;
-        })
-      )
+      fetch(request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => {
+        return caches.match(request).then((cached) => {
+          if (cached) return cached;
+          return new Response(JSON.stringify({ error: 'Offline' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        });
+      })
     );
     return;
   }
 
-  // Static assets: cache-first, then network
-  if (
-    url.pathname.match(/\.(js|css|svg|png|jpg|ico|woff2?|ttf|eot)$/) ||
-    url.pathname === '/' ||
-    url.pathname.startsWith('/_next/')
-  ) {
+  // Next.js static assets (/_next/static/): cache-first with content-hash busting
+  // These files have hashes in their filenames, so they're safe to cache permanently
+  if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
@@ -86,12 +81,56 @@ self.addEventListener('fetch', (event) => {
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }
           return response;
-        }).catch(() => {
-          // For navigation requests, serve the cached index page
-          if (request.mode === 'navigate') {
-            return caches.match('/');
-          }
+        });
+      })
+    );
+    return;
+  }
+
+  // Next.js dynamic routes (/_next/image, /_next/data): always network-first
+  if (url.pathname.startsWith('/_next/')) {
+    event.respondWith(
+      fetch(request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => new Response('Offline', { status: 503 }))
+    );
+    return;
+  }
+
+  // HTML page (/): network-first, fall back to cache
+  if (url.pathname === '/' || request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      }).catch(() => {
+        return caches.match('/').then((cached) => {
+          if (cached) return cached;
           return new Response('Offline', { status: 503 });
+        });
+      })
+    );
+    return;
+  }
+
+  // Other static assets (images, fonts, etc.): cache-first
+  if (url.pathname.match(/\.(svg|png|jpg|ico|woff2?|ttf|eot)$/)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
         });
       })
     );
@@ -196,7 +235,6 @@ async function replayQueue() {
     for (const entry of all) {
       try {
         const headers = new Headers(entry.headers);
-        // Remove content-length header since we're reconstructing the body
         headers.delete('content-length');
 
         const response = await fetch(entry.url, {
@@ -206,7 +244,6 @@ async function replayQueue() {
         });
 
         if (response.ok) {
-          // Remove from queue
           const delTx = db.transaction('queue', 'readwrite');
           delTx.objectStore('queue').delete(entry.id);
           await delTx.done;
@@ -219,7 +256,6 @@ async function replayQueue() {
       }
     }
 
-    // Notify clients
     self.clients.matchAll().then((clients) => {
       clients.forEach((client) => {
         client.postMessage({
