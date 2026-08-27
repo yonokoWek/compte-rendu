@@ -394,7 +394,7 @@ export default function CompteRenduTab() {
                   )}
 
                   {/* Personal total row */}
-                  {personalCategories.length > 0 && (
+                  {minuteCategories.length > 0 && (
                     <tr className="bg-[var(--theme-primary)]">
                       <td className="px-2 py-1.5 text-left font-bold text-[11px] sm:text-xs text-white">
                         Temps avec le Seigneur
