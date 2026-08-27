@@ -35,7 +35,12 @@ export async function POST(request: Request) {
       where: { userId: auth.user.id },
       orderBy: { sortOrder: 'asc' },
     });
-    const profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
+    let profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
+    if (!profile) {
+      profile = await db.userProfile.create({
+        data: { userId: auth.user.id, firstName: '', lastName: '', assembly: '', mentor: '' },
+      });
+    }
     const books = await db.book.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
     const prayers = await db.prayerNeed.findMany({ where: { userId: auth.user.id, resolved: false }, orderBy: { createdAt: 'desc' } });
     const userCategoryIds = categories.map((c) => c.id);
@@ -254,9 +259,9 @@ export async function POST(request: Request) {
     pdf.text(`Compte rendu ${periodLabel}`, 148.5, 15, { align: 'center' });
 
     // Meta info
-    const fullName = profile ? `${profile.lastName || ''} ${profile.firstName || ''}`.trim() : '-';
-    const assembly = profile?.assembly || '-';
-    const mentor = profile?.mentor || '-';
+    const fullName = `${profile.lastName || ''} ${profile.firstName || ''}`.trim() || '-';
+    const assembly = profile.assembly || '-';
+    const mentor = profile.mentor || '-';
 
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');

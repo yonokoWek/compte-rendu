@@ -56,21 +56,44 @@ export default function ProfileDialog() {
   const [pdfColor, setPdfColor] = useState(DEFAULT_PDF_COLOR);
   const [saving, setSaving] = useState(false);
 
+  // Track original values for dirty detection
+  const [originalValues, setOriginalValues] = useState({ firstName: '', lastName: '', assembly: '', mentor: '' });
+
   // Populate fields when profile data loads
+  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     if (profile) {
-      setFirstName(profile.firstName || '');
-      setLastName(profile.lastName || '');
-      setAssembly(profile.assembly || '');
-      setMentor(profile.mentor || '');
+      const vals = {
+        firstName: profile.firstName || '',
+        lastName: profile.lastName || '',
+        assembly: profile.assembly || '',
+        mentor: profile.mentor || '',
+      };
+      setFirstName(vals.firstName);
+      setLastName(vals.lastName);
+      setAssembly(vals.assembly);
+      setMentor(vals.mentor);
+      setOriginalValues(vals);
     }
   }, [profile]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Dirty detection: compare current field values against original saved values
+  const isDirty =
+    firstName !== originalValues.firstName ||
+    lastName !== originalValues.lastName ||
+    assembly !== originalValues.assembly ||
+    mentor !== originalValues.mentor;
 
   // Load PDF color from localStorage on mount
+  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
-    const saved = localStorage.getItem(PDF_COLOR_KEY);
-    if (saved) setPdfColor(saved);
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(PDF_COLOR_KEY);
+      if (saved) setPdfColor(saved);
+    }
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handlePdfColorChange = (color: string) => {
     setPdfColor(color);
@@ -86,6 +109,9 @@ export default function ProfileDialog() {
         body: JSON.stringify({ firstName, lastName, assembly, mentor }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      // Reset dirty state to match newly saved values
+      setOriginalValues({ firstName, lastName, assembly, mentor });
 
       // PDF color is already saved to localStorage in handlePdfColorChange
       // Theme color is handled by ThemePicker component
@@ -168,8 +194,12 @@ export default function ProfileDialog() {
           <Button
             type="button"
             onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-hover)] text-white font-semibold"
+            disabled={saving || !isDirty}
+            className="w-full font-semibold transition-all"
+            style={isDirty && !saving
+              ? { backgroundColor: 'var(--theme-primary, #f97316)', color: '#fff' }
+              : undefined
+            }
           >
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
             {saving ? 'Enregistrement...' : 'Enregistrer'}

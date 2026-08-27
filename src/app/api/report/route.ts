@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     });
 
     const profile = await db.userProfile.findUnique({ where: { userId: auth.user.id } });
+    const safeProfile = profile || await db.userProfile.create({
+      data: { userId: auth.user.id, firstName: '', lastName: '', assembly: '', mentor: '' },
+    });
     const books = await db.book.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
     const prayers = await db.prayerNeed.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } });
 
@@ -259,9 +262,9 @@ export async function POST(request: Request) {
         <td class="total-cell-inline">${fmtCount(totalBibleChapters)}</td>
       </tr>`;
 
-    const fullName = profile ? `${profile.lastName || ''} ${profile.firstName || ''}`.trim() : '';
-    const assembly = profile?.assembly || '';
-    const mentor = profile?.mentor || '';
+    const fullName = `${safeProfile.lastName || ''} ${safeProfile.firstName || ''}`.trim();
+    const assembly = safeProfile.assembly || '';
+    const mentor = safeProfile.mentor || '';
 
     const periodLabel = isSingleWeek
       ? `du ${format(start, 'd', { locale: fr })} au ${format(end, 'd MMMM yyyy', { locale: fr })}`
