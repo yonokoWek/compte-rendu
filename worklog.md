@@ -706,3 +706,24 @@ Stage Summary:
 - Root cause: missing `output: "standalone"` in next.config.ts caused Docker container to fail on startup
 - Fix deployed: Render will auto-redeploy from the push
 - No schema changes, no code logic changes
+---
+Task ID: fix-build-playwright
+Agent: Main
+Task: Fix Render build failure caused by missing 'playwright' module in unused generate-pdf route
+
+Work Log:
+- Identified build error: `Module not found: Can't resolve 'playwright'` in `src/app/api/generate-pdf/route.ts:3:1`
+- Searched entire codebase for any references to `/api/generate-pdf` — found ZERO frontend references
+- Confirmed the route was completely orphaned/unused (no API calls from any component)
+- Deleted `src/app/api/generate-pdf/` directory entirely
+- Verified `personalCategories` variable does NOT exist in current source (was from a previous session/already fixed)
+- Ran `bun run build` — SUCCESS: 25 routes, 0 errors
+- Ran `bun run lint` — only 4 warnings in shadcn/ui library files (carousel.tsx, use-mobile.ts), no custom code issues
+- Started production server with `node server.mjs` — health endpoint returns 200, main page returns full HTML with correct title
+- Server remains alive after page request, no crashes
+
+Stage Summary:
+- Build error FIXED: deleted unused `src/app/api/generate-pdf/route.ts` that imported `playwright`
+- `personalCategories` error: NOT present in current source code (confirmed via global grep)
+- Production build: 25 routes (1 static, 24 dynamic), clean
+- server.mjs: port binds immediately, Next.js loads in background, health check works
